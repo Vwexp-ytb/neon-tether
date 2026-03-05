@@ -1,0 +1,3352 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Tether: Local Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        /* --- Variables de Thème --- */
+        :root {
+            --bg-color: #050505;
+            --ui-bg: #111;
+            --text-color: #eee;
+            --text-color-faded: #aaa;
+            --border-color: #333;
+            --card-bg: #1a1a1a;
+            
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff0055;
+            --neon-purple: #bc13fe;
+            --neon-gold: #ffd700;
+            --neon-danger: #ff3300;
+            --neon-green: #39ff14;
+        }
+        
+        body.light-theme {
+            --bg-color: #f0f0f0;
+            --ui-bg: #ffffff;
+            --text-color: #111;
+            --text-color-faded: #555;
+            --border-color: #ccc;
+            --card-bg: #eee;
+        }
+
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: var(--bg-color); 
+            font-family: 'Orbitron', sans-serif; 
+            color: var(--text-color); 
+            display: flex; 
+            height: 100vh; 
+            user-select: none;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        #game-container { flex: 1; position: relative; box-shadow: inset 0 0 100px rgba(0,0,0,0.9); overflow: hidden; cursor: crosshair; }
+        #sidebar { 
+            width: 350px; 
+            background: var(--ui-bg); 
+            display: flex; 
+            flex-direction: column; 
+            padding: 20px; 
+            box-shadow: -10px 0 40px #000; 
+            z-index: 10; 
+            border-left: 1px solid var(--border-color);
+            transition: background 0.3s, border-color 0.3s;
+        }
+/* --- BATTLE PASS & SAISON --- */
+#battlepass-overlay { z-index: 90; }
+.bp-header { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 20px; box-sizing: border-box; }
+.bp-season-title { color: var(--neon-purple); font-size: 2rem; text-transform: uppercase; letter-spacing: 2px; }
+.bp-progress-container { width: 80%; margin: 20px auto; text-align: center; }
+.bp-bar-bg { width: 100%; height: 20px; background: #333; border-radius: 10px; overflow: hidden; border: 1px solid #555; position: relative; }
+.bp-bar-fill { height: 100%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); width: 0%; transition: width 0.5s ease; }
+.bp-level-info { margin-top: 5px; color: var(--text-color-faded); }
+
+.bp-tracks { display: flex; flex-direction: column; gap: 10px; overflow-x: auto; padding: 20px; width: 90%; }
+.bp-row { display: flex; gap: 15px; padding-bottom: 10px; }
+.bp-row-label { width: 80px; display: flex; align-items: center; font-weight: bold; color: var(--neon-gold); }
+.bp-card { 
+    min-width: 100px; height: 120px; background: var(--card-bg); border: 1px solid var(--border-color); 
+    border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; 
+    position: relative; transition: 0.3s; opacity: 0.6;
+}
+.bp-card.unlocked { opacity: 1; border-color: var(--neon-green); box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); cursor: pointer; }
+.bp-card.claimed { border-color: #555; background: #222; opacity: 0.4; }
+.bp-card .lvl-badge { position: absolute; top: -10px; right: -10px; background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; border: 1px solid var(--text-color); }
+.bp-premium-lock { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; font-size: 2rem; color: var(--neon-danger); }
+
+/* --- RECOMPENSE QUOTIDIENNE --- */
+.daily-reward-btn { position: absolute; top: 10px; left: 10px; animation: pulseGold 2s infinite; }
+@keyframes pulseGold { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 215, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); } }
+
+        
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .stat-box { background: rgba(128,128,128,0.05); padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border-color); transition: border-color 0.3s; }
+        .currency-display { display:flex; align-items:center; font-size:1.5rem; font-weight:bold; color:var(--neon-gold); margin-bottom:15px;}
+        .neon-bit-icon { width:15px; height:15px; background:var(--neon-gold); border-radius:50%; margin-right:8px; box-shadow:0 0 10px var(--neon-gold); }
+        
+        #hud-hearts { position: absolute; top: 20px; left: 20px; display: flex; gap: 10px; z-index: 15; pointer-events: none; }
+        .heart { width: 30px; height: 30px; background: var(--border-color); transform: rotate(45deg); position: relative; box-shadow: 0 0 5px #000; transition:0.3s; }
+        .heart::before, .heart::after { content: ''; position: absolute; width: 30px; height: 30px; background: inherit; border-radius: 50%; }
+        .heart::before { top: -15px; left: 0; } .heart::after { top: 0; left: -15px; }
+        .heart.active { background: var(--neon-pink); box-shadow: 0 0 15px var(--neon-pink); }
+        .heart.shield { background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); } 
+        .heart.lost { background: var(--border-color); opacity: 0.3; transform: rotate(45deg) scale(0.8); }
+
+        .overlay-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,5,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; }
+        body.light-theme .overlay-bg { background: rgba(255,255,255,0.95); }
+        .hidden { display: none !important; }
+
+        .btn { border: none; color: white; padding: 12px 25px; font-family: 'Orbitron', sans-serif; font-weight: bold; font-size: 1rem; cursor: pointer; text-transform: uppercase; background: linear-gradient(90deg, var(--neon-pink), var(--neon-purple)); transition: 0.2s; clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%); margin: 5px; }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+        .btn-green { background: linear-gradient(90deg, var(--neon-green), #005500); }
+        .btn-blue { background: linear-gradient(90deg, var(--neon-blue), #005599); }
+        .btn-leaderboard { background: linear-gradient(90deg, #ff8c00, #ffc87c); color: #000; }
+        .btn-secondary { background: #444; color:#fff; }
+        .btn:disabled { opacity: 0.5; cursor: default; transform: none; filter: none; }
+        
+        /* Sélecteur de Langue */
+        .language-select {
+            padding: 8px;
+            margin-left: 10px;
+            font-family: 'Orbitron', sans-serif;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+        
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            #game-container { width: 100vw; height: calc(100vh - 70px); cursor: default; }
+            #sidebar { width: 100%; height: 70px; padding: 10px; flex-direction: row; justify-content: space-around; align-items: center; box-shadow: 0 -5px 20px #000; border-left: none; border-top: 1px solid var(--border-color); box-sizing: border-box; }
+            .stat-box { display: none; }
+            .currency-display { margin-bottom: 0; font-size: 1.2rem; }
+            #sidebar > div:last-child { text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; }
+            #sidebar > div:last-child > div:first-child { display: none; }
+            #sidebar > div:last-child > div:nth-child(2) { font-size: 1.5rem; }
+        }
+
+        /* BOUTIQUE */
+        #shop-content { width: 90%; max-width: 800px; height: 80%; background: var(--ui-bg); display: flex; flex-direction: column; padding: 20px; border: 1px solid var(--border-color); }
+        .shop-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .shop-tab-btn { background: #333; padding: 10px 20px; border: none; color: #fff; cursor: pointer; font-family: 'Orbitron', sans-serif; }
+        .shop-tab-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; }
+        
+        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; overflow-y: auto; padding: 10px; flex-grow: 1; }
+        
+        .product-card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            padding: 15px; 
+            text-align: center; 
+            border-radius: 8px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            height: 220px;
+            transition: border-color 0.3s, background 0.3s;
+        }
+        .product-card:hover { border-color: var(--text-color); }
+        .product-card.owned { border-color: var(--neon-green); opacity: 0.8; }
+        
+        /* Carte consommable */
+        .consumable-card {
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            padding: 15px; 
+            text-align: center; 
+            border-radius: 8px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            min-height: 220px;
+        }
+        .consumable-card .save-badge {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: var(--neon-green);
+            background: rgba(57, 255, 20, 0.1);
+            padding: 5px;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .rarity-Commun { color: var(--text-color); }
+        .rarity-Rare { color: var(--neon-blue); text-shadow: 0 0 5px var(--neon-blue); }
+        .rarity-Epique { color: var(--neon-purple); text-shadow: 0 0 5px var(--neon-purple); }
+        .rarity-Legendaire { color: var(--neon-gold); text-shadow: 0 0 5px var(--neon-gold); }
+        .rarity-Secret { color: var(--neon-purple); text-shadow: 0 0 10px var(--neon-blue), 0 0 10px var(--neon-purple); }
+
+        .product-effect { font-size: 0.7rem; color: var(--text-color-faded); font-style: italic; }
+
+        /* Pop-up Loot Box */
+        #lootbox-popup { 
+            background: var(--ui-bg); 
+            border: 2px solid var(--neon-gold); 
+            padding: 40px; 
+            max-width: 400px; 
+            text-align: center; 
+            box-shadow: 0 0 80px rgba(255,215,0,0.4);
+        }
+        #lootbox-popup h2 { color: var(--neon-gold); }
+        #lootbox-popup .skin-reveal { 
+            font-size: 1.5rem; 
+            font-weight: bold; 
+            padding: 15px; 
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        #toast { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); background: var(--neon-green); color: #000; padding: 10px 20px; border-radius: 5px; font-weight: bold; opacity: 0; transition: 0.3s; z-index: 200; pointer-events: none; }
+        
+        #start-anim { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); font-size: 4rem; font-weight: 900; color: transparent; -webkit-text-stroke: 2px var(--neon-blue); text-shadow: 0 0 30px var(--neon-blue); pointer-events: none; z-index: 40; opacity: 0; text-align:center; }
+        .anim-play { animation: zoomFade 2.5s forwards; }
+        @keyframes zoomFade { 0% { opacity:0; transform:translate(-50%,-50%) scale(0.5); } 20% { opacity:1; } 80% { opacity:1; transform:translate(-50%,-50%) scale(1.1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(1.5); } }
+
+        /* --- Menu Paramètres --- */
+        #settings-overlay .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 90%;
+            max-width: 400px;
+            margin: 10px 0;
+            font-size: 1.1rem;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input { display:none; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--neon-blue);
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* Style des Sliders de Volume */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 150px;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover { opacity: 1; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* --- Chrono Revive/Resume --- */
+        #revive-timer-overlay {
+            font-size: 8rem;
+            font-weight: 900;
+            color: var(--neon-green);
+            text-shadow: 0 0 30px var(--neon-green);
+        }
+        
+        /* Style pour la pop-up de Nouveau Record */
+        #new-record-overlay .content {
+            background: var(--ui-bg); 
+            border: 2px solid var(--neon-gold); 
+            padding: 40px; 
+            max-width: 500px; 
+            text-align: center; 
+            box-shadow: 0 0 80px rgba(255,215,0,0.4);
+        }
+        #new-record-overlay h1 {
+            color: var(--neon-gold);
+            font-size: 3rem;
+            margin-top: 0;
+        }
+        #new-record-overlay .score {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+        #new-record-overlay .discord-info {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        #new-record-overlay a {
+            color: var(--neon-blue);
+            word-wrap: break-word;
+            display: block;
+            margin-top: 10px;
+        }
+        
+        /* Pop-up Probabilités */
+        #probability-popup {
+            background: var(--ui-bg); 
+            border: 2px solid var(--neon-blue); 
+            padding: 40px; 
+            max-width: 500px; 
+            text-align: center;
+        }
+        #probability-popup table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #probability-popup th, #probability-popup td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* LOOTBOX GRID */
+        #tab-lootbox {
+             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+        }
+        
+        .lootbox-card {
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            padding: 15px; 
+            text-align: center; 
+            border-radius: 8px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            min-height: 280px; 
+            transition: border-color 0.3s, background 0.3s;
+        }
+        
+        /* Style pour la pop-up de Classement */
+        #firebase-leaderboard-overlay table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #firebase-leaderboard-overlay th, #firebase-leaderboard-overlay td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        #firebase-leaderboard-overlay th {
+            color: var(--neon-gold);
+        }
+
+    </style>
+</head>
+<body>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js"></script>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js"></script>
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  // ATTENTION: Ajout de updateProfile
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+  // Votre configuration Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBHmxzAjPb16RFYAs3WhKtZYdT8aHDoAQ",
+    authDomain: "neon-tether-vwexp.firebaseapp.com",
+    projectId: "neon-tether-vwexp",
+    storageBucket: "neon-tether-vwexp.firebasestorage.app",
+    messagingSenderId: "836186957318",
+    appId: "1:836186957318:web:7df14e2a28d3a292c40587",
+    measurementId: "G-VXNWHQFFD8"
+  };
+
+  // Initialiser Firebase et les services
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  
+  // Initialisation du SDK CrazyGames
+const crazySDK = window.CrazyGames.SDK;
+
+async function initCrazyAuth() {
+    // 1. Vérifier si les comptes utilisateurs sont disponibles
+    const isAvailable = await crazySDK.user.isUserAccountAvailable();
+    
+    if (isAvailable) {
+        // 2. Tenter de récupérer l'utilisateur déjà connecté
+        const user = await crazySDK.user.getUser();
+        
+        if (user) {
+            console.log("Utilisateur CrazyGames détecté:", user.username);
+            // Ici, vous pouvez connecter l'utilisateur à Firebase avec son ID CrazyGames
+            // ou simplement utiliser 'user.id' comme identifiant unique
+        } else {
+            // 3. Si non connecté, proposer le bouton "Se connecter avec CrazyGames"
+            // conformément à la doc, ne forcez pas la connexion (Mode Invité par défaut)
+            console.log("Mode Invité activé.");
+        }
+    }
+}
+
+// Appeler l'initialisation au chargement
+initCrazyAuth();
+  // Rendre les fonctions d'accès disponibles globalement 
+  window.FIREBASE = { 
+      auth: auth, 
+      db: db,
+      // Référence aux fonctions pour le script principal
+      onAuthStateChanged: onAuthStateChanged,
+      signInWithEmailAndPassword: signInWithEmailAndPassword,
+      createUserWithEmailAndPassword: createUserWithEmailAndPassword,
+      signOut: signOut,
+      updateProfile: updateProfile, // NOUVEAU
+      doc: doc,
+      setDoc: setDoc,
+      getDoc: getDoc,
+      collection: collection,
+      query: query,
+      orderBy: orderBy,
+      limit: limit,
+      getDocs: getDocs
+  };
+</script>
+
+    <audio id="bgm-player" loop src=""></audio>
+
+    <div id="toast">MESSAGE</div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="start-anim"><span data-i18n="appTitle">NEON TETHER</span></div>
+
+        <button id="pause-btn" class="btn btn-secondary hidden" onclick="pauseGame()" style="position: absolute; top: 10px; right: 10px; z-index: 60; padding: 8px 15px;">
+            <span data-i18n="pauseBtn">|| PAUSE</span>
+        </button>
+
+        <div id="hud-hearts" class="hidden">
+            <div class="heart active" id="h1"></div>
+            <div class="heart active" id="h2"></div>
+            <div class="heart shield hidden" id="h3"></div> 
+        </div>
+
+        <div id="tutorial-overlay" class="overlay-bg hidden">
+            <div style="background:var(--ui-bg); border:2px solid var(--neon-blue); padding:30px; max-width:400px; text-align:center; box-shadow:0 0 50px rgba(0,243,255,0.2)">
+                <h2 style="color:var(--text-color); margin-top:0" data-i18n="controlsTitle">CONTROLES</h2>
+                <p data-i18n="controlsGrapple">🖱️/👆 <strong>GRAPPIN:</strong> Clic Gauche ou Toucher l'écran</p>
+                <p style="color:var(--neon-green)" data-i18n="controlsBounce">🟢 <strong>VERT:</strong> Rebond Automatique</p>
+                <p style="color:var(--neon-danger)" data-i18n="controlsDamage">🔴 <strong>ROUGE:** Dégâts</p>
+                <p style="color:var(--neon-blue)" data-i18n="controlsShield">🛡️ **BOUCLIER:** Nécessite le pouvoir **Bouclier**</p>
+                <button onclick="startGameReal()" class="btn"><span data-i18n="btnPlay">JOUER</span></button>
+            </div>
+        </div>
+
+        <div id="revive-overlay" class="overlay-bg hidden">
+            <h2 style="color:var(--neon-danger); font-size:2.5rem" data-i18n="titleDead">MORT</h2>
+            <div style="display:flex; gap:20px; margin-top:20px">
+                <button id="btn-revive-ticket" class="btn btn-green"><span data-i18n="btnReviveTicket">UTILISER 1 TICKET (Vous en avez: 0)</span></button>
+            </div>
+            <button id="btn-abandon" class="btn btn-secondary" style="margin-top:10px"><span data-i18n="btnAbandon">ABANDONNER</span></button>
+        </div>
+        
+        <div id="revive-timer-overlay" class="overlay-bg hidden">
+            <div id="revive-countdown">3</div>
+        </div>
+        
+        <div id="pause-overlay" class="overlay-bg hidden">
+            <h1 style="font-size:3rem; margin-bottom:30px" data-i18n="titlePaused">JEU EN PAUSE</h1>
+            <button onclick="startResumeCountdown()" class="btn"><span data-i18n="btnResume">REPRENDRE</span></button>
+            <button onclick="restartGame()" class="btn btn-green"><span data-i18n="btnRestart">RECOMMENCER</span></button>
+            <button onclick="quitGame()" class="btn btn-secondary"><span data-i18n="btnQuit">QUITTER</span></button>
+        </div>
+        
+        <div id="new-record-overlay" class="overlay-bg hidden">
+            <div class="content">
+                <h1 data-i18n="titleNewRecord">🏆 NOUVEAU RECORD 🏆</h1>
+                <p style="font-size:1.2rem; margin-bottom:10px;" data-i18n="newRecordCongrats">Félicitations, vous avez atteint :</p>
+                <div class="score"><span id="final-record-display">0</span>m</div>
+
+                <div class="discord-info">
+                    <p data-i18n="discordShare">📸 **PARTAGEZ VOTRE EXPLOIT !** 📸</p>
+                    <p style="font-size:0.9rem; color:var(--text-color-faded);" data-i18n="discordJoin">
+                        Rejoignez notre serveur Discord et postez une capture d'écran de votre nouveau record !
+                    </p>
+                    <img id="discord-qr-code" 
+                         src="https://genqrcode.com/embedded?style=0&inner_eye_style=0&outer_eye_style=0&logo=null&color=%23000000FF&background_color=%23FFFFFFFF&inner_eye_color=%23000000&outer_eye_color=%23000000&imageformat=svg&language=fr&frame_style=0&frame_text=SCAN%20ME&frame_text_icon_color=%23000000&frame_text_icon=null&frame_color=%23000000&frame_background_color=%23FFFFFF&frame_text_color=%23FFFFFF&invert_colors=false&gradient_style=0&gradient_color_start=%23FF0000&gradient_color_end=%237F007F&gradient_start_offset=5&gradient_end_offset=95&stl_type=1&logo_remove_background=null&stl_size=100&stl_qr_height=1.5&stl_base_height=2&stl_include-stands=false&stl_qr_magnet_type=3&stl_qr_magnet_count=0&type=0&text=https%3A%2F%2Fdiscord.gg%2FWkGMwYeWcY&width=500&height=500&bordersize=2" 
+                         alt="QR Code Discord" 
+                         style="margin:15px auto; display:block; width:150px; height:150px;">
+                         
+                    <a href="https://discord.gg/WkGMwYeWcY" target="_blank">
+                        https://discord.gg/WkGMwYeWcY
+                    </a>
+                </div>
+                
+                <button onclick="showMenuAfterAd()" class="btn btn-leaderboard" style="margin-top:25px;">
+                    <span data-i18n="btnReturnToMenu">RETOUR AU MENU</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="battlepass-overlay" class="overlay-bg hidden">
+    <div class="bp-header">
+        <div class="bp-season-title">Saison 1: NEON GENESIS</div>
+        <button onclick="document.getElementById('battlepass-overlay').classList.add('hidden')" class="btn btn-secondary">X</button>
+    </div>
+    
+    <div class="bp-progress-container">
+        <h2 id="bp-level-display">Niveau 1</h2>
+        <div class="bp-bar-bg"><div id="bp-bar-fill" class="bp-bar-fill"></div></div>
+        <div class="bp-level-info"><span id="bp-xp-current">0</span> / <span id="bp-xp-max">1000</span> XP</div>
+    </div>
+
+    <div style="text-align:center; margin-bottom:10px;">
+        <button id="btn-buy-pass" onclick="BATTLEPASS.buyPremium()" class="btn btn-green">ACHETER PREMIUM (500 Coins)</button>
+    </div>
+
+    <div class="bp-tracks" id="bp-tracks-container">
+        </div>
+</div>
+
+<div id="daily-overlay" class="overlay-bg hidden">
+    <div style="background:var(--card-bg); border:2px solid var(--neon-gold); padding:40px; text-align:center; border-radius:15px;">
+        <h1 style="color:var(--neon-gold)">RÉCOMPENSE QUOTIDIENNE</h1>
+        <div style="font-size:4rem; margin:20px;">💎</div>
+        <p style="font-size:1.5rem">+100 COINS</p>
+        <button onclick="DAILY.claim()" class="btn btn-green">RÉCUPÉRER</button>
+    </div>
+</div>
+
+<div id="admin-panel">
+    <h2 style="color:var(--neon-danger)">ADMIN CONSOLE</h2>
+    <div class="admin-section">
+        <h3>Gestion Joueur</h3>
+        <button onclick="ADMIN.addCoins(1000)" class="btn btn-secondary">+1000 Coins</button>
+        <button onclick="ADMIN.resetDaily()" class="btn btn-secondary">Reset Daily</button>
+    </div>
+    <div class="admin-section">
+        <h3>Battle Pass</h3>
+        <button onclick="ADMIN.addXP(500)" class="btn btn-secondary">+500 XP</button>
+        <button onclick="ADMIN.setLevel(10)" class="btn btn-secondary">Set Lvl 10</button>
+        <button onclick="ADMIN.togglePremium()" class="btn btn-secondary">Toggle Premium</button>
+    </div>
+    <div class="admin-section">
+        <h3>Config Saison</h3>
+        <input type="text" id="admin-season-name" class="admin-input" placeholder="Nom Saison">
+        <button onclick="ADMIN.updateSeason()" class="btn btn-blue">Mettre à jour</button>
+    </div>
+    <button onclick="ADMIN.toggle()" class="btn btn-secondary" style="width:100%">FERMER</button>
+</div>
+
+        <div id="menu-overlay" class="overlay-bg hidden"> 
+            <button id="btn-daily" onclick="DAILY.check()" class="btn daily-reward-btn hidden" style="position:absolute; top:20px; left:20px;">🎁 CADEAU</button>
+
+            <button onclick="BATTLEPASS.open()" class="btn btn-leaderboard" style="background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);">🎟️ BATTLE PASS</button>
+            <div style="position: absolute; top: 20px; right: 20px; text-align: right;">
+                 <div id="user-display" style="color: var(--neon-blue); margin-bottom: 10px;"></div>
+                </div>
+        
+            <h1 style="font-size:4rem; margin-bottom:10px" data-i18n="appTitle">NEON TETHER</h1>
+            <div style="color:var(--text-color-faded); margin-bottom:30px" data-i18n="appVersion">LOCAL EDITION</div>
+            
+            <button id="fullscreen-prompt-btn" onclick="requestFullscreenAndHide()" class="btn btn-blue" style="margin-bottom: 20px; border: 2px solid var(--neon-blue); color: #fff;">
+                <span data-i18n="btnFullscreenPrompt">ACTIVER LE PLEIN ÉCRAN</span>
+            </button>
+
+            <button onclick="initGame()" class="btn"><span data-i18n="btnPlay">JOUER</span></button>
+            <button onclick="SHOP.open('skins')" class="btn btn-blue"><span data-i18n="btnShop">BOUTIQUE & POUVOIRS</span></button>
+            <button id="btnLeaderboard" onclick="FIREBASE.openLeaderboard()" class="btn btn-leaderboard"><span data-i18n="btnLeaderboard">🏆 CLASSEMENT</span></button>
+            <button id="btnAccount" onclick="openAccount()" class="btn btn-blue" style="margin-top: 10px;"><span data-i18n="btnAccount">👤 MON COMPTE</span></button>
+            <button onclick="openSettings()" class="btn btn-secondary" style="background:#555"><span data-i18n="btnSettings">⚙️ PARAMÈTRES</span></button>
+        </div>
+        
+
+        <div id="settings-overlay" class="overlay-bg hidden">
+            <h1 style="font-size:2.5rem; margin-bottom:20px" data-i18n="titleSettings">PARAMÈTRES</h1>
+            
+            <div class="settings-row">
+                <span data-i18n="settingLanguage">Langue</span>
+                <select id="language-select" onchange="changeLanguage()" class="language-select">
+                    <option value="fr">Français (FR)</option>
+                    <option value="en">English (EN)</option>
+                    <option value="es">Español (ES)</option>
+                    <option value="de">Deutsch (DE)</option>
+                    <option value="zh">中文 (ZH)</option>
+                    <option value="it">Italiano (IT)</option>
+                    <option value="pt">Português (PT)</option>
+                    <option value="ru">Русский (RU)</option>
+                    <option value="ja">日本語 (JA)</option>
+                    <option value="ko">한국어 (KO)</option>
+                    <option value="ar">العربية (AR)</option>
+                    <option value="tr">Türkçe (TR)</option>
+                    <option value="pl">Polski (PL)</option>
+                    <option value="nl">Nederlands (NL)</option>
+                    <option value="sv">Svenska (SV)</option>
+                    <option value="fi">Suomi (FI)</option>
+                    <option value="da">Dansk (DA)</option>
+                    <option value="no">Norsk (NO)</option>
+                    <option value="id">Bahasa Indonesia (ID)</option>
+                    <option value="th">ไทย (TH)</option>
+                </select>
+            </div>
+            
+            <div class="settings-row">
+                <span data-i18n="settingBGM">Musique de Fond (BGM)</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="bgm-toggle" onchange="toggleBGM()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <span data-i18n="settingVolumeBGM">Volume Musique</span>
+                <input type="range" id="bgm-volume" min="0" max="1" step="0.01" onchange="changeBGMVolume()">
+            </div>
+            
+             <div class="settings-row" style="margin-top:20px;">
+                <span data-i18n="settingSFX">Effets Sonores (SFX)</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="sfx-toggle" onchange="toggleSFX()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <span data-i18n="settingVolumeSFX">Volume SFX</span>
+                <input type="range" id="sfx-volume" min="0" max="1" step="0.01" onchange="changeSFXVolume()">
+            </div>
+            
+            <div class="settings-row" style="margin-top:20px;">
+                <span data-i18n="settingLightTheme">Thème Clair</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="settings-row">
+                <span data-i18n="settingFullscreen">Plein Écran</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="fullscreen-toggle" onchange="toggleFullscreen()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <span data-i18n="settingReducedEffects">Effets Réduits</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="effects-toggle" onchange="toggleEffects()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <button onclick="closeSettings()" class="btn btn-secondary" style="margin-top:30px"><span data-i18n="btnClose">FERMER</span></button>
+        </div>
+        
+        <div id="account-overlay" class="overlay-bg hidden">
+            <div style="background:var(--ui-bg); border:1px solid var(--neon-blue); padding:40px; max-width:400px; text-align:center;">
+                <h2 style="color:var(--neon-blue);" data-i18n="titleAccount">MON COMPTE</h2>
+                
+                <div id="auth-status" style="margin-bottom: 20px; font-weight: bold;"></div>
+                
+                <input type="email" id="auth-email" placeholder="Email" style="width:100%; padding:10px; margin:5px 0; border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-color);">
+                <input type="password" id="auth-password" placeholder="Mot de passe" style="width:100%; padding:10px; margin:5px 0; border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-color);">
+                
+                <input type="text" id="auth-pseudo" data-i18n-placeholder="authPlaceholderPseudo" placeholder="Pseudo (pour le classement)" style="width:100%; padding:10px; margin:5px 0 15px 0; border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-color);">
+                
+                <button onclick="FIREBASE_AUTH.signUp()" class="btn btn-green" style="width:100%; margin-top:5px;" data-i18n="btnSignUp">S'INSCRIRE</button>
+                <button onclick="FIREBASE_AUTH.signIn()" class="btn btn-blue" style="width:100%; margin-top:5px;" data-i18n="btnSignIn">SE CONNECTER</button>
+                
+                <button id="auth-reset-pseudo-btn" onclick="FIREBASE_AUTH.resetPseudo()" class="btn btn-blue hidden" style="width:100%; margin-top:15px; background: #6a5acd;" data-i18n="btnResetPseudo">Réinitialiser/Changer Pseudo</button>
+                
+                <button id="auth-signout-btn" onclick="FIREBASE_AUTH.signOut()" class="btn btn-secondary hidden" style="width:100%; margin-top:5px;" data-i18n="btnSignOut">DÉCONNEXION</button>
+                
+                <p id="auth-message" style="color:var(--neon-danger); margin-top:15px;"></p>
+                <button onclick="closeAccount()" class="btn btn-secondary" style="margin-top:20px;" data-i18n="btnClose">FERMER</button>
+            </div>
+        </div>
+        <div id="shop-overlay" class="overlay-bg hidden">
+            <div id="shop-content">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:var(--text-color)">
+                    <div class="currency-display"><div class="neon-bit-icon"></div> <span id="shop-currency-display">0</span> <span data-i18n="currencyName">Neon Bits</span></div>
+                </div>
+                
+                <div class="shop-tabs">
+                    <button class="shop-tab-btn active" data-tab="skins" onclick="SHOP.changeTab('skins')"><span data-i18n="tabSkins">SKINS</span></button>
+                    <button class="shop-tab-btn" data-tab="powers" onclick="SHOP.changeTab('powers')"><span data-i18n="tabPowers">POUVOIRS</span></button>
+                    <button class="shop-tab-btn" data-tab="lootbox" onclick="SHOP.changeTab('lootbox')"><span data-i18n="tabLootbox">CAISSE ALÉATOIRE</span></button>
+                    <button class="shop-tab-btn" data-tab="consumables" onclick="SHOP.changeTab('consumables')"><span data-i18n="tabConsumables">CONSOMMABLES</span></button>
+                </div>
+                
+                <div id="tab-skins" class="shop-grid"></div>
+                <div id="tab-powers" class="shop-grid hidden"></div>
+                <div id="tab-lootbox" class="shop-grid hidden"></div> 
+                <div id="tab-consumables" class="shop-grid hidden"></div> <button onclick="SHOP.close()" class="btn btn-secondary" style="align-self:center; margin-top:auto"><span data-i18n="btnClose">FERMER</span></button>
+            </div>
+        </div>
+        
+        <div id="lootbox-reveal-overlay" class="overlay-bg hidden">
+            <div id="lootbox-popup">
+                <h2 data-i18n="lootboxTitleReveal">OUVERTURE DE CAISSE...</h2>
+                <div class="skin-reveal" id="revealed-skin-name"></div>
+                <button onclick="SHOP.closeLootboxPopup()" class="btn btn-green"><span data-i18n="lootboxBtnConfirm">MAGNIFIQUE !</span></button>
+            </div>
+        </div>
+        
+        <div id="probability-overlay" class="overlay-bg hidden">
+            <div id="probability-popup">
+                <h2 data-i18n="probabilityTitle">PROBABILITÉS DES CAISSES</h2>
+                
+                <select id="probability-select" onchange="SHOP.renderProbabilityTable(this.value)" class="language-select" style="margin:15px 0; width:auto; font-size:1rem;">
+                    </select>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-i18n="probTableRarity">Rareté</th>
+                            <th data-i18n="probTableChance">Chance</th>
+                            <th data-i18n="probTableOwned">Skins Possédés</th>
+                            <th data-i18n="probTableTotal">Skins Totaux</th>
+                        </tr>
+                    </thead>
+                    <tbody id="probability-table-body">
+                        </tbody>
+                </table>
+                <p style="font-size:0.8rem; margin-top:15px; color:var(--neon-danger)" data-i18n="probTableNote">*Les chances sont réévaluées si tous les skins d'une rareté sont possédés.</p>
+                <p style="font-size:0.8rem; color:var(--neon-purple); margin-top: 5px;">*Le Skin Secret (Spectre Cosmique) a 0,0001% de chance d'apparaître dans la Caisse Commune tant que vous possédez &le; 40 skins.</p>
+                <button onclick="closeProbabilityPopup()" class="btn btn-secondary" style="margin-top:20px"><span data-i18n="btnClose">FERMER</span></button>
+            </div>
+        </div>
+        
+    </div>
+
+    <div id="sidebar">
+        <div class="currency-display"><div class="neon-bit-icon"></div> <span id="sidebar-currency-display">0</span> <span data-i18n="currencyName">Neon Bits</span></div>
+        
+        <div class="stat-box" style="border-color:var(--neon-blue)">
+            <h3 style="color:var(--neon-blue); margin:0;" data-i18n="sidebarPowersTitle">POUVOIRS PERMANENTS</h3>
+            <div id="active-powers-list" style="font-size:0.8rem; color:var(--text-color-faded); margin-top:10px">
+                </div>
+        </div>
+
+        <div class="stat-box" id="time-stat-box" style="margin-top:10px; border-color:var(--neon-pink)">
+            <h3 style="color:var(--neon-pink); margin:0;" data-i18n="sidebarTimeTitle">TEMPS DE JEU TOTAL</h3>
+            <div id="total-time-display" style="font-size:1.2rem; font-weight:bold; margin-top:5px;">00:00:00</div>
+        </div>
+
+        <div style="margin-top:auto">
+            <div style="font-size:0.7rem; color:#888" data-i18n="sidebarAltitude">ALTITUDE ACTUELLE</div>
+            <div style="font-size:2.5rem; font-weight:bold; color:var(--text-color)"><span id="score-display">0</span>m</div>
+            <div style="font-size:0.7rem; color:var(--neon-gold); margin-top:5px;"><span data-i18n="sidebarBest">Meilleur</span>: <span id="best-score-display">0</span>m</div>
+        </div>
+    </div>
+
+<script>
+/**
+ * NEON TETHER - LOCAL EDITION
+ * MODIFIÉ AVEC FIREBASE (AUTH, PSEUDO ET CLASSEMENT)
+ */
+
+// --- DATA CONFIG & i18n ---
+
+const RARITIES = ["Commun", "Rare", "Epique", "Legendaire", "Secret"]; 
+
+const LANGUAGES = {
+    fr: {
+        appTitle: "NEON TETHER",
+        appVersion: "ÉDITION LOCALE",
+        currencyName: "Neon Bits",
+        btnPlay: "JOUER",
+        btnShop: "BOUTIQUE & POUVOIRS",
+        btnLeaderboard: "🏆 CLASSEMENT",
+        btnSettings: "⚙️ PARAMÈTRES",
+        btnAccount: "👤 MON COMPTE", 
+        titleSettings: "PARAMÈTRES",
+        settingLanguage: "Langue",
+        settingBGM: "Musique de Fond (BGM)",
+        settingVolumeBGM: "Volume Musique",
+        settingSFX: "Effets Sonores (SFX)",
+        settingVolumeSFX: "Volume SFX",
+        settingLightTheme: "Thème Clair",
+        settingReducedEffects: "Effets Réduits",
+        settingFullscreen: "Plein Écran",
+        btnClose: "FERMER",
+        tabSkins: "SKINS",
+        tabPowers: "POUVOIRS",
+        tabLootbox: "CAISSE ALÉATOIRE",
+        tabConsumables: "CONSOMMABLES", 
+        shopOwned: "POSSÉDÉ",
+        shopFreeAd: "GRATUIT (PUB)", 
+        shopEquipped: "ÉQUIPÉ",
+        shopEquip: "ÉQUIPER",
+        shopBuy: "ACHETER",
+        shopBuyPermanent: "ACHETER PERMANENT",
+        shopNotEnough: "Pas assez de Neon Bits",
+        skinBought: "Skin Acheté",
+        unlocked: "débloqué",
+        ticketPack3: "Pack de 3 Tickets",
+        ticketPack6: "Pack de 6 Tickets",
+        ticketPack12: "Pack de 12 Tickets",
+        saveX: "Économisez {X}%",
+        reviveTickets: "Tickets de Ranimation",
+        reviveTicketsDesc: "Permet de revivre 1 fois après une mort. Max 3 par partie.",
+        powerShield: "Bouclier (+1 Vie)",
+        powerShieldDesc: "Ajoute une vie de bouclier permanente.",
+        powerGravity: "Gravité Lunaire",
+        powerGravityDesc: "Réduit la gravité, facilitant les ascensions.",
+        powerSpeed: "Grappin Turbo",
+        powerSpeedDesc: "Augmente la vitesse d'attraction du grappin.",
+        lootboxTitle: (rarity) => `CAISSE ${rarity.toUpperCase()} DE NÉON`,
+        lootboxDesc: (rarity) => `Tentez votre chance pour un skin de rareté **${rarity}** ou supérieure !`,
+        lootboxBtnOpen: "OUVRIR UNE CAISSE",
+        lootboxBtnProb: "VOIR LES PROBABILITÉS",
+        lootboxTitleReveal: "OUVERTURE DE CAISSE...",
+        lootboxBtnConfirm: "MAGNIFIQUE !",
+        newSkin: "Nouveau Skin",
+        allSkinsOwned: "Vous possédez déjà tous les skins !",
+        probabilityTitle: "PROBABILITÉS DES CAISSES",
+        probTableRarity: "Rareté",
+        probTableChance: "Chance",
+        probTableOwned: "Skins Possédés",
+        probTableTotal: "Skins Totaux",
+        probTableNote: "*Les chances sont réévaluées si tous les skins d'une rareté sont possédés.",
+        pauseBtn: "|| PAUSE",
+        controlsTitle: "CONTROLES",
+        controlsGrapple: "🖱️/👆 **GRAPPIN:** Clic Gauche ou Toucher l'écran",
+        controlsBounce: "🟢 **VERT:** Rebond Automatique",
+        controlsDamage: "🔴 **ROUGE:** Dégâts",
+        controlsShield: "🛡️ **BOUCLIER:** Nécessite le pouvoir **Bouclier**",
+        titleDead: "MORT",
+        btnReviveAd: "📺 PUB (Gratuit)", 
+        btnReviveTicket: "UTILISER 1 TICKET (Vous en avez: {X})", 
+        btnAbandon: "ABANDONNER",
+        titlePaused: "JEU EN PAUSE",
+        btnResume: "REPRENDRE",
+        btnRestart: "RECOMMENCER",
+        btnQuit: "QUITTER",
+        titleNewRecord: "🏆 NOUVEAU RECORD 🏆",
+        newRecordCongrats: "Félicitations, vous avez atteint :",
+        btnReturnToMenu: "RETOUR AU MENU",
+        sidebarPowersTitle: "POUVOIRS PERMANENTS",
+        sidebarAltitude: "ALTITUDE ACTUELLE",
+        sidebarBest: "Meilleur",
+        sidebarTimeTitle: "TEMPS DE JEU TOTAL", 
+        saveError: "Sauvegarde locale indisponible!", 
+        adNotAvailable: "Pub indispo", 
+        skinUnlockedAd: "Skin débloqué par Pub!", 
+        limitReached: "Limite atteinte (2/2)", 
+        maxRevives: "Max 3 Revives par partie",
+        grappleBlocked: "Impossible de s'accrocher!",
+        damageTaken: "-1 VIE",
+        leaderboardUnavailable: "Classement indisponible", 
+        noPowerHint: "Aucun pouvoir acheté. Visitez la Boutique!",
+        earnBitsTitle: "Gagner des Bits", 
+        earnBitsDesc: "Regardez une publicité pour obtenir 1000 Neon Bits.", 
+        adPlus1000: "PUB (+1000)", 
+        secretInvincibility: "Spectre Cosmique: Invincibilité Activée!", 
+        reviveNoTickets: "Pas de tickets de Ranimation!", 
+        anticheatScoreVoid: "Score suspect. Non sauvegardé.", 
+        authWelcome: "Bienvenue {X}",
+        titleAccount: "MON COMPTE",
+        btnSignUp: "S'INSCRIRE",
+        btnSignIn: "SE CONNECTER",
+        btnSignOut: "DÉCONNEXION",
+        // NOUVEAU: Traductions des bonus
+        pickupCoin: "+100 💰",
+        pickupMagnet: "Aimant 🧲 (30s)",
+        pickupShield: "Bouclier 🛡️ (20s)",
+        magnetEnd: "Aimant terminé",
+        shieldEnd: "Bouclier temporaire terminé",
+        shieldBroken: "Bouclier 🛡️ brisé!",
+        safeZoneEnd: "Zone sécurisée terminée!",
+        safeZoneStart: "Zone sécurisée (200m)!",
+        // AJOUT PLEIN ÉCRAN
+        btnFullscreenPrompt: "ACTIVER LE PLEIN ÉCRAN", 
+        rarityNames: {
+            "Commun": "Commun",
+            "Rare": "Rare",
+            "Epique": "Épique",
+            "Legendaire": "Légendaire",
+            "Secret": "Secret"
+        },
+        // NOUVEAU: Pseudo
+        authPlaceholderPseudo: "Pseudo (pour le classement)", 
+        authStatusConnected: "Connecté: {X}", 
+        authStatusNoPseudo: "Veuillez vous connecter pour le classement.", 
+        btnResetPseudo: "Réinitialiser/Changer Pseudo", 
+        pseudoResetSuccess: "Pseudo mis à jour!", 
+        pseudoResetError: "Erreur de mise à jour du pseudo.", 
+        pseudoRequired: "Le pseudo est requis pour l'inscription.",
+    },
+    en: {
+        appTitle: "NEON TETHER",
+        appVersion: "LOCAL EDITION",
+        currencyName: "Neon Bits",
+        btnPlay: "PLAY",
+        btnShop: "SHOP & POWERS",
+        btnLeaderboard: "🏆 LEADERBOARD",
+        btnSettings: "⚙️ SETTINGS",
+        btnAccount: "👤 MY ACCOUNT", 
+        titleSettings: "SETTINGS",
+        settingLanguage: "Language",
+        settingBGM: "Background Music (BGM)",
+        settingVolumeBGM: "BGM Volume",
+        settingSFX: "Sound Effects (SFX)",
+        settingVolumeSFX: "SFX Volume",
+        settingLightTheme: "Light Theme",
+        settingReducedEffects: "Reduced Effects",
+        settingFullscreen: "Fullscreen",
+        btnClose: "CLOSE",
+        tabSkins: "SKINS",
+        tabPowers: "POWERS",
+        tabLootbox: "RANDOM CRATE",
+        tabConsumables: "CONSUMABLES",
+        shopOwned: "OWNED",
+        shopFreeAd: "FREE (AD)",
+        shopEquipped: "EQUIPPED",
+        shopEquip: "EQUIP",
+        shopBuy: "BUY",
+        shopBuyPermanent: "BUY PERMANENT",
+        shopNotEnough: "Not enough Neon Bits",
+        skinBought: "Skin Bought",
+        unlocked: "unlocked",
+        ticketPack3: "3 Tickets Pack",
+        ticketPack6: "6 Tickets Pack",
+        ticketPack12: "12 Tickets Pack",
+        saveX: "Save {X}%",
+        reviveTickets: "Revive Tickets",
+        reviveTicketsDesc: "Lets you revive once after death. Max 3 per game.",
+        powerShield: "Shield (+1 HP)",
+        powerShieldDesc: "Adds a permanent shield life.",
+        powerGravity: "Lunar Gravity",
+        powerGravityDesc: "Reduces gravity, making ascents easier.",
+        powerSpeed: "Turbo Grapple",
+        powerSpeedDesc: "Increases grapple attraction speed.",
+        lootboxTitle: (rarity) => `${rarity.toUpperCase()} NEON CRATE`,
+        lootboxDesc: (rarity) => `Try your luck for a skin of **${rarity}** rarity or higher!`,
+        lootboxBtnOpen: "OPEN CRATE",
+        lootboxBtnProb: "VIEW PROBABILITIES",
+        lootboxTitleReveal: "CRATE OPENING...",
+        lootboxBtnConfirm: "AWESOME!",
+        newSkin: "New Skin",
+        allSkinsOwned: "You already own all skins!",
+        probabilityTitle: "CRATE PROBABITIES",
+        probTableRarity: "Rarity",
+        probTableChance: "Chance",
+        probTableOwned: "Skins Owned",
+        probTableTotal: "Total Skins",
+        probTableNote: "*Chances are re-evaluated if all skins of a rarity are owned.",
+        pauseBtn: "|| PAUSE",
+        controlsTitle: "CONTROLS",
+        controlsGrapple: "🖱️/👆 **GRAPPLE:** Left Click or Touch Screen",
+        controlsBounce: "🟢 **GREEN:** Automatic Bounce",
+        controlsDamage: "🔴 **RED:** Damage",
+        controlsShield: "🛡️ **SHIELD:** Requires **Shield** power",
+        titleDead: "DEATH",
+        btnReviveAd: "📺 AD (Free)",
+        btnReviveTicket: "USE 1 TICKET (You have: {X})",
+        btnAbandon: "ABANDON",
+        titlePaused: "GAME PAUSED",
+        btnResume: "RESUME",
+        btnRestart: "RESTART",
+        btnQuit: "QUIT",
+        titleNewRecord: "🏆 NEW RECORD 🏆",
+        newRecordCongrats: "Congratulations, you reached:",
+        btnReturnToMenu: "RETURN TO MENU",
+        sidebarPowersTitle: "PERMANENT POWERS",
+        sidebarAltitude: "CURRENT ALTITUDE",
+        sidebarBest: "Best",
+        sidebarTimeTitle: "TOTAL PLAY TIME",
+        saveError: "Save unavailable!",
+        adNotAvailable: "Ad not available",
+        skinUnlockedAd: "Skin unlocked via Ad!",
+        limitReached: "Limit reached (2/2)",
+        maxRevives: "Max 3 Revives per game",
+        grappleBlocked: "Cannot grapple!",
+        damageTaken: "-1 HP",
+        leaderboardUnavailable: "Leaderboard unavailable",
+        noPowerHint: "No powers purchased. Visit the Shop!",
+        earnBitsTitle: "Earn Bits",
+        earnBitsDesc: "Watch an ad to get 1000 Neon Bits.",
+        adPlus1000: "AD (+1000)",
+        secretInvincibility: "Cosmic Spectre: Invincibility Activated!",
+        reviveNoTickets: "No Revive Tickets!",
+        anticheatScoreVoid: "Suspicious score. Not saved.",
+        authWelcome: "Welcome {X}",
+        titleAccount: "MY ACCOUNT",
+        btnSignUp: "SIGN UP",
+        btnSignIn: "SIGN IN",
+        btnSignOut: "SIGN OUT",
+        // NOUVEAU: Traductions des bonus
+        pickupCoin: "+100 💰",
+        pickupMagnet: "Magnet 🧲 (30s)",
+        pickupShield: "Shield 🛡️ (20s)",
+        magnetEnd: "Magnet ended",
+        shieldEnd: "Temporary shield ended",
+        shieldBroken: "Shield 🛡️ broken!",
+        safeZoneEnd: "Safe zone ended!",
+        safeZoneStart: "Safe zone (200m)!",
+        // AJOUT PLEIN ÉCRAN
+        btnFullscreenPrompt: "ENABLE FULLSCREEN",
+        rarityNames: {
+            "Commun": "Common",
+            "Rare": "Rare",
+            "Epique": "Epic",
+            "Legendaire": "Legendary",
+            "Secret": "Secret"
+        },
+        // NOUVEAU: Pseudo
+        authPlaceholderPseudo: "Nickname (for leaderboard)",
+        authStatusConnected: "Connected: {X}",
+        authStatusNoPseudo: "Please sign in for leaderboard.",
+        btnResetPseudo: "Reset/Change Nickname",
+        pseudoResetSuccess: "Nickname updated!",
+        pseudoResetError: "Nickname update error.",
+        pseudoRequired: "Nickname is required for sign up.",
+    },
+};
+
+// --- Détection de langue et initialisation ---
+const browserLanguage = (navigator.language || navigator.userLanguage).substring(0, 2);
+let currentLanguage = LANGUAGES[browserLanguage] ? browserLanguage : 'fr';
+
+var t = (key, fallback = key) => {
+    const lang = LANGUAGES[currentLanguage];
+    if (lang && lang[key]) {
+        return lang[key];
+    }
+    const fallbackLang = LANGUAGES['fr']; // Fallback sur FR
+    if (fallbackLang && fallbackLang[key]) {
+        return fallbackLang[key];
+    }
+    return fallback;
+};
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const translation = t(key, el.innerText);
+        if (typeof translation === 'string') {
+            el.innerHTML = translation;
+        }
+    });
+    // NOUVEAU: Application des placeholders
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.placeholder = t(key, el.placeholder);
+    });
+    SHOP.renderLootbox();
+    SHOP.renderPowers();
+    SHOP.renderConsumables();
+    UI.update();
+}
+
+function changeLanguage() {
+    const selector = document.getElementById('language-select');
+    currentLanguage = selector.value;
+    CG.data.settings.language = currentLanguage;
+    FIREBASE.saveUserData(); // Sauvegarde des paramètres en ligne
+    applyTranslations();
+}
+
+// --- DATA CONFIG (CONSTANTES) ---
+
+const SKINS = [
+    {id:0, n:"Defaut", c:"#fff", price:0, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:1, n:"Rouge Vif", c:"#ff0055", price:100, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"}, 
+    {id:2, n:"Bleu Cyber", c:"#00f3ff", price:100, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:3, n:"Néant", c:"#bc13fe", price:100, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"}, 
+    {id:4, n:"Toxique", c:"#39ff14", price:100, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"}, 
+    {id:5, n:"Orange", c:"#ff6600", price:350, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:6, n:"Cyan", c:"#00ffff", price:450, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:7, n:"Rose", c:"#ff69b4", price:500, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:8, n:"Citron Vert", c:"#aaff00", price:600, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:9, n:"Gris Acier", c:"#b0c4de", price:750, ad_unlock: false, rarity:"Commun", effect:"none", texture:"solid"},
+    {id:10, n:"Menthe", c:"#98ff98", price:800, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:11, n:"Lavande", c:"#e6e6fa", price:850, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:12, n:"Corail", c:"#ff7f50", price:900, ad_unlock: false, rarity:"Commun", effect:"glow", texture:"solid"},
+    {id:13, n:"Soleil Couchant", c:"#ff4500", c2:"#ffd700", price:1200, ad_unlock: false, rarity:"Rare", effect:"glow", texture:"gradient"},
+    {id:14, n:"Océan", c:"#00f3ff", c2:"#005599", price:1200, ad_unlock: false, rarity:"Rare", effect:"glow", texture:"gradient"},
+    {id:15, n:"Forêt de Néon", c:"#39ff14", c2:"#005500", price:1200, ad_unlock: false, rarity:"Rare", effect:"glow", texture:"gradient"},
+    {id:16, n:"Améthyste", c:"#bc13fe", c2:"#ff0055", price:1350, ad_unlock: false, rarity:"Rare", effect:"glow", texture:"gradient"},
+    {id:17, n:"Furtif", c:"#333", c2:"#111", price:1500, ad_unlock: false, rarity:"Rare", effect:"pulse", texture:"gradient"},
+    {id:18, n:"Perle", c:"#f0f0f0", c2:"#b0b0b0", price:1900, ad_unlock: false, rarity:"Rare", effect:"glow", texture:"gradient"},
+    {id:19, n:"Rubis", c:"#e0115f", price:2500, ad_unlock: false, rarity:"Rare", effect:"pulse", texture:"solid"},
+    {id:20, n:"Saphir", c:"#0f52ba", price:2500, ad_unlock: false, rarity:"Rare", effect:"pulse", texture:"solid"},
+    {id:21, n:"Emeraude", c:"#50c878", price:2500, ad_unlock: false, rarity:"Rare", effect:"pulse", texture:"solid"},
+    {id:22, n:"Topaze", c:"#ffc87c", price:3000, ad_unlock: false, rarity:"Rare", effect:"pulse", texture:"solid"},
+    {id:23, n:"Plasma", c:"#ff0055", c2:"#00f3ff", price:6000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:24, n:"Supernova", c:"#ffd700", c2:"#ff3300", price:6000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:25, n:"Galaxie", c:"#bc13fe", c2:"#000033", price:7000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:26, n:"Fantôme", c:"#ffffff", c2:"#aaaaaa", price:7500, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:27, n:"Or Vif", c:"#ffd700", price:8500, ad_unlock: false, rarity:"Epique", effect:"glow", texture:"solid"},
+    {id:28, n:"Argent Pur", c:"#c0c0c0", price:8500, ad_unlock: false, rarity:"Epique", effect:"glow", texture:"solid"},
+    {id:29, n:"Magma", c:"#ff3300", c2:"#330000", price:9000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:30, n:"Glace", c:"#00f3ff", c2:"#ffffff", price:9000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:31, n:"Impulsion", c:"#ffffff", price:9500, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"solid"},
+    {id:32, n:"Volt", c:"#aaff00", c2:"#005500", price:10000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:33, n:"Ectoplasme", c:"#39ff14", c2:"#ffffff", price:12000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:34, n:"Data", c:"#005500", price:12500, ad_unlock: false, rarity:"Epique", effect:"none", texture:"solid"},
+    {id:35, n:"Cyberpunk", c:"#ff0055", c2:"#bc13fe", price:15000, ad_unlock: false, rarity:"Epique", effect:"pulse", texture:"gradient"},
+    {id:36, n:"Roi Midas", c:"#ffd700", c2:"#ffc87c", price:20000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:37, n:"Diamant", c:"#b9f2ff", c2:"#ffffff", price:25000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:38, n:"Singularité", c:"#000000", c2:"#333333", price:30000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:39, n:"Aurore", c:"#39ff14", c2:"#00f3ff", price:35000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:40, n:"Phénix", c:"#ff3300", c2:"#ffd700", price:40000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:41, n:"Nébuleuse", c:"#ff0055", c2:"#bc13fe", price:45000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:42, n:"Trou Noir", c:"#000000", price:50000, ad_unlock: false, rarity:"Legendaire", effect:"none", texture:"solid"},
+    {id:43, n:"Léviathan", c:"#005599", c2:"#00f3ff", price:55000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:44, n:"Obsidienne", c:"#330033", c2:"#110011", price:60000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:45, n:"Étoile à Neutrons", c:"#ffffff", c2:"#00f3ff", price:70000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:46, n:"Solaire", c:"#ffd700", c2:"#fff", price:75000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:47, n:"Arc-en-ciel", c:"#ff0000", c2:"#00ff00", price:80000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"}, 
+    {id:48, n:"Prisme", c:"#ffffff", price:90000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"solid"}, 
+    {id:49, n:"Divin", c:"#ffd700", c2:"#ffffff", price:100000, ad_unlock: false, rarity:"Legendaire", effect:"pulse", texture:"gradient"},
+    {id:50, n:"Spectre Cosmique", c:"#bc13fe", c2:"#00f3ff", price:600000, ad_unlock: false, rarity:"Secret", effect:"pulse", texture:"gradient"}
+];
+
+const LOOTBOXES = {
+    "Commun": { 
+        price: 1500, 
+        minRarity: "Commun",
+        probabilities: { "Commun": 90.00, "Rare": 9.00, "Epique": 0.95, "Legendaire": 0.05 },
+        secretProb: 0.0001
+    },
+    "Rare": { 
+        price: 4000, 
+        minRarity: "Rare",
+        probabilities: { "Commun": 0.00, "Rare": 85.00, "Epique": 14.50, "Legendaire": 0.50 },
+        secretProb: 0
+    },
+    "Epique": { 
+        price: 8000, 
+        minRarity: "Epique",
+        probabilities: { "Commun": 0.00, "Rare": 0.00, "Epique": 75.00, "Legendaire": 25.00 },
+        secretProb: 0
+    },
+    "Legendaire": { 
+        price: 30000, 
+        minRarity: "Legendaire",
+        probabilities: { "Commun": 0.00, "Rare": 0.00, "Epique": 0.00, "Legendaire": 100.00 },
+        secretProb: 0
+    }
+};
+
+const POWERS = {
+    shield: { nKey: "powerShield", descKey: "powerShieldDesc", price: 50000 },
+    gravity: { nKey: "powerGravity", descKey: "powerGravityDesc", price: 100000 },
+    speed: { nKey: "powerSpeed", descKey: "powerSpeedDesc", price: 200000 }
+};
+
+const CONSUMABLES = {
+    reviveTicket3: { nKey: "ticketPack3", descKey: "reviveTicketsDesc", price: 7500, amount: 3, basePrice: 2500 },
+    reviveTicket6: { nKey: "ticketPack6", descKey: "reviveTicketsDesc", price: 14000, amount: 6, basePrice: 2500 },
+    reviveTicket12: { nKey: "ticketPack12", descKey: "reviveTicketsDesc", price: 25000, amount: 12, basePrice: 2500 },
+};
+
+
+// --- MANAGER (Local Storage & FIREBASE) ---
+const CG_DEFAULT_DATA = {
+    currency: 0, 
+    skins: [0], 
+    currentSkin: 0,
+    bestScore: 0,
+    powers: { shield: false, gravity: false, speed: false },
+    settings: {
+        theme: 'dark',
+        reducedEffects: false,
+        bgmOn: true,
+        bgmVolume: 0.3,
+        sfxOn: true,
+        sfxVolume: 0.8,
+        language: currentLanguage 
+    },
+    hasPlayedTutorial: false,
+    totalTimePlayedSeconds: 0,
+    reviveTickets: 0 
+};
+
+let currentFirebaseUser = null; 
+
+const FIREBASE = {
+    // ------------------------------------
+    // # INITIALISATION & ECOUTEUR
+    // ------------------------------------
+    init: function() {
+        if (!window.FIREBASE) return console.warn("Firebase n'est pas initialisé globalement.");
+        
+        window.FIREBASE.onAuthStateChanged(window.FIREBASE.auth, (user) => {
+            currentFirebaseUser = user;
+            const userDisplay = document.getElementById('user-display');
+            
+            // NOUVEAU: Utilise le displayName pour le pseudo, sinon l'email, sinon 'Invité'
+            const pseudo = user?.displayName || user?.email || 'Invité';
+            
+            if (user) {
+                userDisplay.innerText = t('authWelcome').replace('{X}', pseudo);
+                FIREBASE.loadUserData(user); // CHARGEMENT DES DONNÉES
+            } else {
+                userDisplay.innerText = t('authWelcome').replace('{X}', 'Invité');
+                CG.save(); 
+            }
+            openAccount(); 
+            UI.toast(user ? t('authStatusConnected').replace('{X}', pseudo) : "Déconnecté.", "var(--neon-blue)");
+        });
+    },
+    
+    // ------------------------------------
+    // # CHARGEMENT DES DONNÉES UTILISATEUR
+    // ------------------------------------
+    loadUserData: async function(user) {
+        if (!user) return;
+        
+        const userId = user.uid;
+        const userDocRef = window.FIREBASE.doc(window.FIREBASE.db, 'users', userId);
+        
+        try {
+            const docSnap = await window.FIREBASE.getDoc(userDocRef);
+            
+            if (docSnap.exists()) {
+                const firebaseData = docSnap.data();
+                
+                const loadedData = {
+                    ...CG_DEFAULT_DATA, 
+                    ...firebaseData,   
+                    
+                    powers: {...CG_DEFAULT_DATA.powers, ...firebaseData.powers},
+                    settings: {...CG_DEFAULT_DATA.settings, ...firebaseData.settings},
+                    
+                    totalTimePlayedSeconds: CG.data.totalTimePlayedSeconds + (firebaseData.totalTimePlayedSeconds || 0),
+                    bestScore: Math.max(CG.data.bestScore, firebaseData.bestScore || 0)
+                };
+
+                CG.data = loadedData;
+                
+                currentLanguage = CG.data.settings.language;
+                document.getElementById('language-select').value = currentLanguage;
+                
+                applySettings();
+                applyTranslations();
+                UI.update();
+                CG.save(); 
+                
+                UI.toast("Progression synchronisée (Firebase)!", "var(--neon-green)");
+                
+            } else {
+                FIREBASE.saveUserData(); 
+            }
+
+        } catch (error) {
+            console.error("Erreur de chargement des données Firebase:", error);
+            UI.toast("Erreur de chargement des données en ligne.", "var(--neon-danger)");
+        }
+    },
+
+    // ------------------------------------
+    // # SAUVEGARDE GLOBALE DES DONNÉES
+    // ------------------------------------
+    saveUserData: async function() {
+        CG.save(); 
+        
+        if (!currentFirebaseUser) {
+            console.warn("Impossible de sauvegarder : Utilisateur non connecté à Firebase.");
+            return;
+        }
+
+        const userId = currentFirebaseUser.uid;
+        const userDocRef = window.FIREBASE.doc(window.FIREBASE.db, 'users', userId);
+        
+        // NOUVEAU: Récupérer le pseudo (displayName) ou l'email si non défini
+        const pseudo = currentFirebaseUser.displayName || currentFirebaseUser.email;
+        
+        const dataToSave = {
+            currency: CG.data.currency,
+            skins: CG.data.skins,
+            currentSkin: CG.data.currentSkin,
+            bestScore: CG.data.bestScore,
+            powers: CG.data.powers,
+            settings: CG.data.settings,
+            hasPlayedTutorial: CG.data.hasPlayedTutorial,
+            totalTimePlayedSeconds: CG.data.totalTimePlayedSeconds,
+            reviveTickets: CG.data.reviveTickets,
+            
+            pseudo: pseudo, // NOUVEAU: Sauvegarde du pseudo
+            email: currentFirebaseUser.email, 
+            lastUpdated: Date.now()
+        };
+
+        try {
+            await window.FIREBASE.setDoc(userDocRef, dataToSave, { merge: true }); 
+            
+            FIREBASE.updateLeaderboardScore(CG.data.bestScore);
+
+        } catch (error) {
+            console.error("Erreur de sauvegarde des données Firebase:", error);
+            UI.toast("Erreur de sauvegarde des données en ligne.", "var(--neon-danger)");
+        }
+    },
+    
+    // NOUVEAU: Fonction dédiée à la mise à jour du CLASSEMENT
+    updateLeaderboardScore: async function(newScore) {
+        if (!currentFirebaseUser) return;
+        
+        const userId = currentFirebaseUser.uid;
+        const leaderboardDocRef = window.FIREBASE.doc(window.FIREBASE.db, 'scores', userId);
+        // NOUVEAU: Récupérer le pseudo
+        const pseudo = currentFirebaseUser.displayName || currentFirebaseUser.email; 
+        
+        try {
+            const docSnap = await window.FIREBASE.getDoc(leaderboardDocRef);
+            const existingScore = docSnap.exists() ? docSnap.data().score : 0;
+
+            if (existingScore < newScore) {
+                await window.FIREBASE.setDoc(leaderboardDocRef, {
+                    score: newScore,
+                    pseudo: pseudo, // NOUVEAU: Utiliser le pseudo pour le classement
+                    timestamp: Date.now()
+                });
+            }
+        } catch(e) {
+             console.error("Erreur lors de la mise à jour du classement:", e);
+        }
+    },
+    
+    // ------------------------------------
+    // # CLASSEMENT (Affichage)
+    // ------------------------------------
+    openLeaderboard: async function() {
+        if (!currentFirebaseUser) {
+            UI.toast("Veuillez vous connecter pour voir le classement.", "var(--neon-danger)");
+            return;
+        }
+        
+        UI.toast("Chargement du classement...", "var(--neon-blue)");
+        STATE.screen = 'leaderboard';
+        document.getElementById('menu-overlay').classList.add('hidden');
+        
+        try {
+            const scoresRef = window.FIREBASE.collection(window.FIREBASE.db, 'scores');
+            const q = window.FIREBASE.query(scoresRef, window.FIREBASE.orderBy('score', 'desc'), window.FIREBASE.limit(10));
+            const querySnapshot = await window.FIREBASE.getDocs(q);
+
+            let leaderboardHtml = '<h2>🏆 CLASSEMENT MONDIAL 🏆</h2><table><tr><th>#</th><th>Joueur</th><th>Score (m)</th></tr>';
+            let rank = 1;
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                // NOUVEAU: Afficher le pseudo
+                const displayName = data.pseudo || "Utilisateur Inconnu"; 
+                leaderboardHtml += `<tr><td>${rank++}</td><td>${displayName}</td><td>${data.score}</td></tr>`;
+            });
+            leaderboardHtml += '</table><button onclick="FIREBASE.closeLeaderboard()" class="btn btn-secondary" style="margin-top:20px;">FERMER</button>';
+
+            const tempOverlay = document.createElement('div');
+            tempOverlay.id = 'firebase-leaderboard-overlay';
+            tempOverlay.className = 'overlay-bg';
+            tempOverlay.innerHTML = `<div style="background:var(--ui-bg); border:1px solid var(--neon-blue); padding:30px; max-width:600px; text-align:center;">${leaderboardHtml}</div>`;
+            document.body.appendChild(tempOverlay);
+
+        } catch (error) {
+            UI.toast(`Erreur classement: ${error.message}`, "var(--neon-danger)");
+            STATE.screen = 'menu';
+            document.getElementById('menu-overlay').classList.remove('hidden');
+        }
+    },
+    
+    closeLeaderboard: function() {
+        const overlay = document.getElementById('firebase-leaderboard-overlay');
+        if (overlay) overlay.remove();
+        STATE.screen = 'menu';
+        document.getElementById('menu-overlay').classList.remove('hidden');
+    }
+};
+
+const FIREBASE_AUTH = {
+    _displayMessage: function(msg, color='var(--neon-danger)') {
+        const msgEl = document.getElementById('auth-message');
+        msgEl.innerText = msg;
+        msgEl.style.color = color;
+    },
+    
+    _getCredentials: function() {
+        const email = document.getElementById('auth-email').value;
+        const password = document.getElementById('auth-password').value;
+        const pseudo = document.getElementById('auth-pseudo').value; // NOUVEAU
+        return { email, password, pseudo };
+    },
+
+    signUp: async function() {
+        if (!window.FIREBASE) return this._displayMessage("Firebase indisponible.");
+        this._displayMessage("", "");
+        const { email, password, pseudo } = this._getCredentials(); 
+        
+        if (!email || password.length < 6) {
+            return this._displayMessage("Email invalide ou mot de passe trop court (min 6).");
+        }
+        if (!pseudo.trim()) { // NOUVEAU: PSEUDO REQUIS
+            return this._displayMessage(t("pseudoRequired"));
+        }
+        
+        try {
+            const userCredential = await window.FIREBASE.createUserWithEmailAndPassword(window.FIREBASE.auth, email, password);
+            const user = userCredential.user;
+            
+            // NOUVEAU: Enregistrer le pseudo dans le profil Firebase Auth
+            await window.FIREBASE.updateProfile(user, { displayName: pseudo.trim() });
+
+            this._displayMessage("Inscription réussie!", "var(--neon-green)");
+            closeAccount();
+        } catch (error) {
+            this._displayMessage(`Erreur d'inscription: ${error.message}`);
+        }
+    },
+    
+    signIn: async function() {
+        if (!window.FIREBASE) return this._displayMessage("Firebase indisponible.");
+        this._displayMessage("", "");
+        const { email, password } = this._getCredentials();
+        
+        try {
+            await window.FIREBASE.signInWithEmailAndPassword(window.FIREBASE.auth, email, password);
+            this._displayMessage("Connexion réussie!", "var(--neon-green)");
+            closeAccount();
+        } catch (error) {
+            this._displayMessage(`Erreur de connexion: ${error.message}`);
+        }
+    },
+    
+    signOut: async function() {
+        if (!window.FIREBASE) return this._displayMessage("Firebase indisponible.");
+        try {
+            // NOUVEAU: Sauvegarder les données avant de déconnecter
+            FIREBASE.saveUserData(); 
+            await window.FIREBASE.signOut(window.FIREBASE.auth);
+            this._displayMessage("Déconnexion réussie.", "var(--neon-green)");
+            closeAccount();
+        } catch (error) {
+            this._displayMessage(`Erreur de déconnexion: ${error.message}`);
+        }
+    },
+    
+    // NOUVEAU: Fonction pour réinitialiser le pseudo
+    resetPseudo: async function() {
+        if (!currentFirebaseUser || !window.FIREBASE) return;
+        this._displayMessage("", "");
+        
+        const newPseudo = document.getElementById('auth-pseudo').value;
+        if (!newPseudo.trim()) {
+            return this._displayMessage(t("pseudoRequired"));
+        }
+        
+        try {
+            await window.FIREBASE.updateProfile(currentFirebaseUser, { displayName: newPseudo.trim() });
+            
+            // Met à jour la variable locale
+            currentFirebaseUser.displayName = newPseudo.trim();
+            
+            // Sauvegarde les données sur Firestore (pour le classement et la collection users)
+            await FIREBASE.saveUserData(); 
+            
+            this._displayMessage(t("pseudoResetSuccess"), "var(--neon-green)");
+            document.getElementById('auth-pseudo').value = newPseudo.trim();
+            openAccount(); // Rafraîchit l'UI
+        } catch(error) {
+             this._displayMessage(`${t("pseudoResetError")}: ${error.message}`);
+        }
+    }
+};
+
+
+const CG = {
+    data: { ...CG_DEFAULT_DATA }, 
+
+    init: function() {
+        // Initialiser Firebase et l'écouteur
+        FIREBASE.init(); 
+
+        const saved = localStorage.getItem('neonTetherSave');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                this.data = { ...this.data, ...parsed };
+                if(parsed.powers) this.data.powers = {...this.data.powers, ...parsed.powers};
+                if(parsed.settings) this.data.settings = {...this.data.settings, ...parsed.settings};
+            } catch(e) { console.error("Save corrupt"); }
+        }
+
+        // Fix data integrity
+        if (typeof this.data.totalTimePlayedSeconds === 'undefined') this.data.totalTimePlayedSeconds = 0;
+        if (typeof this.data.reviveTickets === 'undefined') this.data.reviveTickets = 0;
+        if (!this.data.skins.includes(0)) this.data.skins.push(0);
+
+        currentLanguage = this.data.settings.language; 
+        document.getElementById('language-select').value = currentLanguage;
+        
+        player = new Player(); 
+        player.pos = new Vector(canvas.width/2, canvas.height/2);
+        player.radius = 40; 
+        
+        applySettings();
+        applyTranslations(); 
+        UI.update();
+        
+        document.getElementById('menu-overlay').classList.remove('hidden');
+        
+        this.startPreviewLoop();
+    },
+
+    save: function() { 
+        // Sauvegarde locale (utilisée par les invités ou comme backup)
+        localStorage.setItem('neonTetherSave', JSON.stringify(this.data));
+        UI.update(); 
+    },
+
+    previewAnimationId: null,
+    startPreviewLoop: function() {
+        if (this.previewAnimationId) return;
+        
+        const previewLoop = () => {
+            if (STATE.screen === 'playing') {
+                this.stopPreviewLoop();
+                return;
+            }
+            this.drawPlayerPreview(); 
+            this.previewAnimationId = requestAnimationFrame(previewLoop);
+        };
+        this.previewAnimationId = requestAnimationFrame(previewLoop);
+    },
+    stopPreviewLoop: function() {
+        if (this.previewAnimationId) {
+            cancelAnimationFrame(this.previewAnimationId);
+            this.previewAnimationId = null;
+        }
+    },
+    
+    drawPlayerPreview: function() {
+        if (!player || (STATE.screen !== 'menu' && STATE.screen !== 'shop' && STATE.screen !== 'settings' && STATE.screen !== 'leaderboard' && STATE.screen !== 'account')) {
+            const isLightTheme = document.body.classList.contains('light-theme');
+            const bgColor = isLightTheme ? '#f0f0f0' : '#050505';
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+        
+        const isLightTheme = document.body.classList.contains('light-theme');
+        const reducedEffects = CG.data.settings.reducedEffects;
+        const bgColor = isLightTheme ? '#f0f0f0' : '#050505';
+        
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        player.pos.y = canvas.height / 2 + Math.sin(Date.now() / 500) * 5;
+        player.pos.x = canvas.width / 2;
+
+        const skin = player.skin;
+        let shadowColor = skin.c;
+        let shadowBlur = 0;
+
+        if (!reducedEffects) {
+            if (skin.effect === 'glow') {
+                shadowBlur = 50; 
+            } else if (skin.effect === 'pulse') {
+                shadowBlur = 50 + Math.sin(Date.now() / 150) * 25; 
+            }
+        }
+        
+        let fillStyle;
+        if (skin.texture === 'gradient' && skin.c2) {
+            const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+            grad.addColorStop(0, skin.c);
+            grad.addColorStop(1, skin.c2);
+            fillStyle = grad;
+        } else {
+            fillStyle = skin.c;
+        }
+
+        if (skin.id === 47) { 
+            const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+            grad.addColorStop(0, `hsl(${Date.now()/10 % 360}, 100%, 50%)`);
+            grad.addColorStop(1, `hsl(${(Date.now()/10 + 180) % 360}, 100%, 50%)`);
+            fillStyle = grad;
+            if (!reducedEffects) shadowColor = `hsl(${Date.now()/10 % 360}, 100%, 50%)`;
+        }
+        if (skin.id === 48 && !reducedEffects) { 
+            shadowColor = `hsl(${Date.now()/10 % 360}, 100%, 50%)`;
+        }
+        
+       if (skin.id === 50) {
+        const time = Date.now() / 10;
+        const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+        grad.addColorStop(0, skin.c);
+        grad.addColorStop(1, skin.c2);
+        fillStyle = grad;
+        
+        if (!reducedEffects) {
+            shadowColor = skin.c; 
+            ctx.shadowBlur = 50 + Math.sin(Date.now() / 150) * 25;
+        }
+    }
+        ctx.fillStyle = fillStyle;
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowColor = shadowColor;
+
+        ctx.beginPath(); 
+        ctx.arc(player.pos.x, player.pos.y, player.radius, 0, Math.PI*2); 
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        if(STATE.screen === 'shop') {
+             ctx.font = '20px Orbitron';
+             ctx.textAlign = 'center';
+             ctx.fillStyle = isLightTheme ? '#000' : '#eee';
+             ctx.fillText(skin.n, player.pos.x, player.pos.y - player.radius - 20);
+        }
+
+    },
+};
+
+// --- Musique de Fond (BGM) ---
+const BGM = {
+    player: document.getElementById('bgm-player'),
+    started: false,
+    
+    start: function() {
+        if (this.started || !this.player) return;
+        this.player.src = "Vidnoz_AIMusic.mp3"; // NOTE: Ce fichier doit exister localement
+        this.update();
+        
+        if (this.player.src) {
+            this.player.play().catch(e => console.warn("L'auto-play de la BGM a été bloqué."));
+            this.started = true;
+        } else {
+            console.warn("Musique de fond (BGM) non configurée.");
+        }
+    },
+    
+    update: function() {
+        if (!this.player) return;
+        this.player.muted = !CG.data.settings.bgmOn;
+        this.player.volume = CG.data.settings.bgmVolume;
+    }
+};
+
+function formatTime(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    
+    const h = String(hours).padStart(2, '0');
+    const m = String(minutes).padStart(2, '0');
+    const s = String(seconds).padStart(2, '0');
+    
+    return `${h}:${m}:${s}`;
+}
+
+function getScaleFactor() {
+    // Largeur de référence : 1000px
+    const refWidth = 1000;
+    const currentWidth = window.innerWidth; 
+    
+    const factor = Math.min(1.0, Math.max(0.7, currentWidth / refWidth)); 
+    return factor;
+}
+
+// --- UI & SHOP ---
+const UI = {
+    update: function() {
+        document.getElementById('sidebar-currency-display').innerText = Math.floor(CG.data.currency).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        document.getElementById('shop-currency-display').innerText = Math.floor(CG.data.currency).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        document.getElementById('best-score-display').innerText = CG.data.bestScore;
+        document.getElementById('total-time-display').innerText = formatTime(CG.data.totalTimePlayedSeconds);
+        
+        const powersList = document.getElementById('active-powers-list');
+        powersList.innerHTML = '';
+        const p = CG.data.powers;
+        if(p.shield) powersList.innerHTML += `🛡️ ${t('powerShield')} <span style="color:var(--neon-green)">[${t('shopOwned')}]</span><br>`;
+        if(p.gravity) powersList.innerHTML += `🌑 ${t('powerGravity')} <span style="color:var(--neon-green)">[${t('shopOwned')}]</span><br>`;
+        if(p.speed) powersList.innerHTML += `⚡ ${t('powerSpeed')} <span style="color:var(--neon-green)">[${t('shopOwned')}]</span><br>`;
+        if(!p.shield && !p.gravity && !p.speed) powersList.innerHTML = t('noPowerHint') || 'Aucun pouvoir acheté. Visitez la Boutique!';
+        
+        if (player) {
+            player.gravity = CG.data.powers.gravity ? 0.20 : 0.35;
+            player.hookSpeed = CG.data.powers.speed ? 1.3 : 0.8;
+            player.maxHp = CG.data.powers.shield ? 3 : 2;
+        }
+    },
+    toast: function(msg, color="#39ff14") {
+        const t = document.getElementById('toast'); t.innerText = msg; t.style.background = color; t.style.opacity = 1;
+        setTimeout(()=>t.style.opacity=0, 2500);
+    }
+};
+
+const SHOP = {
+    currentTab: 'skins',
+    
+    open: function(tab) { 
+        document.getElementById('shop-overlay').classList.remove('hidden'); 
+        STATE.screen = 'shop'; 
+        this.changeTab(tab || this.currentTab);
+        UI.update();
+        CG.startPreviewLoop(); 
+        
+        if (player) {
+            player.skin = SKINS.find(s => s.id === CG.data.currentSkin) || SKINS[0];
+            player.radius = 40; 
+        }
+    },
+    close: function() { 
+        document.getElementById('shop-overlay').classList.add('hidden'); 
+        STATE.screen = 'menu'; 
+        
+        if (player) {
+            player.skin = SKINS.find(sk => sk.id === CG.data.currentSkin) || SKINS[0];
+            player.radius = 40;
+        }
+    },
+    
+    changeTab: function(tab) {
+        this.currentTab = tab;
+        document.querySelectorAll('.shop-tab-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+        });
+        document.getElementById('tab-skins').classList.toggle('hidden', tab !== 'skins');
+        document.getElementById('tab-powers').classList.toggle('hidden', tab !== 'powers');
+        document.getElementById('tab-lootbox').classList.toggle('hidden', tab !== 'lootbox'); 
+        document.getElementById('tab-consumables').classList.toggle('hidden', tab !== 'consumables'); 
+        
+        if (tab === 'skins') this.renderSkins();
+        else if (tab === 'powers') this.renderPowers();
+        else if (tab === 'lootbox') this.renderLootbox(); 
+        else if (tab === 'consumables') this.renderConsumables(); 
+    },
+    
+    renderSkins: function() {
+        const g = document.getElementById('tab-skins'); g.innerHTML="";
+        SKINS.forEach(s => {
+            const owned = CG.data.skins.includes(s.id);
+            const sel = CG.data.currentSkin === s.id;
+            const canAfford = CG.data.currency >= s.price;
+            
+            const d = document.createElement('div');
+            d.className = `product-card ${owned?'owned':''}`;
+            d.style.borderColor = sel ? 'var(--neon-blue)' : '';
+
+            let buttonHTML = '';
+            
+            if (owned) {
+                buttonHTML = `<button class="btn btn-blue">${sel ? t("shopEquipped") : t("shopEquip")}</button>`;
+            } else {
+                buttonHTML = `<button class="btn ${canAfford?'btn-green':'btn-secondary'}" ${!canAfford ? 'disabled' : ''}>${t("shopBuy")}</button>`;
+            }
+
+            let effectDesc = "Effet: Aucun";
+            if (s.effect === 'glow') effectDesc = "Effet: Lumineux";
+            if (s.effect === 'pulse') effectDesc = "Effet: Pulsation";
+            if (s.texture === 'gradient') effectDesc += " (Dégradé)";
+            if (s.id === 47) effectDesc = "Effet: Arc-en-ciel (Dégradé)";
+            if (s.id === 48) effectDesc = "Effet: Prisme (Pulsation Arc-en-ciel)";
+            if (s.rarity === 'Secret') effectDesc = "Effet: Invincibilité Danger";
+
+            d.innerHTML = `
+                <div style="width:40px;height:40px;background:${s.c};border-radius:50%;margin:0 auto;box-shadow:0 0 10px ${s.c}"></div>
+                <b>${s.n}</b>
+                <div class="rarity-${s.rarity}" style="font-weight:bold; font-size: 0.9rem;">${t(`rarityNames.${s.rarity}`)}</div>
+                <div class="product-effect">${effectDesc}</div>
+                <div style="font-size:0.8rem; color:${owned?'var(--neon-green)':'var(--text-color-faded)'}; margin-top: 5px;">
+                    ${owned ? t("shopOwned") : 
+                       `<div style="color:var(--neon-gold); font-weight:bold;"><div class="neon-bit-icon" style="display:inline-block; vertical-align:middle;"></div> ${s.price.toLocaleString()}</div>`}
+                </div>
+                ${buttonHTML}
+            `;
+            
+            d.onmouseover = () => { if (player) player.skin = s; };
+            d.onmouseout = () => { if (player) player.skin = SKINS.find(sk => sk.id === CG.data.currentSkin) || SKINS[0]; };
+            
+            d.onclick = () => {
+                if (owned) {
+                    CG.data.currentSkin = s.id; 
+                    FIREBASE.saveUserData(); 
+                    SHOP.renderSkins();
+                    UI.toast(`Skin ${s.n} ${t("shopEquipped")}!`, s.c);
+                } else {
+                    if (canAfford) {
+                        CG.data.currency -= s.price;
+                        CG.data.skins.push(s.id);
+                        CG.data.currentSkin = s.id;
+                        FIREBASE.saveUserData(); 
+                        UI.toast(`${t("skinBought")}!`, s.c);
+                        Sound.play('purchase');
+                        spawnParticleEffect(canvas.width / 2, STATE.camY + canvas.height / 2, '#ffd700', 30);
+                    } else {
+                        UI.toast(t("shopNotEnough"), "#ff3300");
+                    }
+                    SHOP.renderSkins();
+                }
+                if (player) player.skin = SKINS.find(sk => sk.id === CG.data.currentSkin) || SKINS[0];
+            };
+            g.appendChild(d);
+        });
+    },
+
+    renderPowers: function() {
+        const g = document.getElementById('tab-powers'); g.innerHTML="";
+        
+        Object.keys(POWERS).forEach(key => {
+            const p = POWERS[key];
+            const owned = CG.data.powers[key];
+            const canAfford = CG.data.currency >= p.price;
+            
+            const d = document.createElement('div');
+            d.className = `product-card ${owned?'owned':''}`;
+            d.innerHTML = `
+                <b style="color:${owned?'var(--neon-green)':'var(--neon-blue)'}">${t(p.nKey)}</b>
+                <div style="font-size:0.75rem; color:var(--text-color-faded)">${t(p.descKey)}</div>
+                ${!owned ? `
+                    <div style="color:var(--neon-gold); font-weight:bold; margin-top:10px;"><div class="neon-bit-icon" style="display:inline-block; vertical-align:middle;"></div> ${p.price.toLocaleString()}</div>
+                    <button class="btn ${canAfford?'btn-green':'btn-secondary'}" ${!canAfford ? 'disabled' : ''}>${t("shopBuyPermanent")}</button>
+                ` : `
+                    <div style="color:var(--neon-green); font-weight:bold; margin-top:10px;">${t("shopOwned")}</div>
+                    <button class="btn btn-secondary" disabled>${t("shopOwned")}</button>
+                `}
+            `;
+            d.onclick = () => {
+                if(!owned && canAfford) {
+                    CG.data.currency -= p.price;
+                    CG.data.powers[key] = true;
+                    FIREBASE.saveUserData();
+                    this.renderPowers();
+                    UI.toast(`${t(p.nKey)} ${t("unlocked")}!`, "var(--neon-blue)");
+                    Sound.play('purchase');
+                    spawnParticleEffect(canvas.width / 2, STATE.camY + canvas.height / 2, '#00f3ff', 30);
+                    UI.update();
+                } else if (!owned) {
+                    UI.toast(t("shopNotEnough"), "#ff3300");
+                }
+            };
+            g.appendChild(d);
+        });
+    },
+    
+    renderConsumables: function() {
+        const g = document.getElementById('tab-consumables'); 
+        g.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; color: var(--text-color-faded);">
+                <h3 style="color: var(--neon-green); margin-top:0;">${t('reviveTickets')}</h3>
+                <p style="font-size: 0.9rem; margin-top:-10px;">${t('reviveTicketsDesc')}</p>
+                <p style="font-size: 1.2rem; font-weight: bold;">Vous avez : ${CG.data.reviveTickets} Tickets</p>
+            </div>
+        `;
+        
+        Object.keys(CONSUMABLES).forEach(key => {
+            const item = CONSUMABLES[key];
+            const canAfford = CG.data.currency >= item.price;
+            
+            let savePerc = 0;
+            const expectedPrice = item.amount * item.basePrice;
+            if (item.price < expectedPrice) {
+                savePerc = Math.round(((expectedPrice - item.price) / expectedPrice) * 100);
+            }
+            
+            const d = document.createElement('div');
+            d.className = `consumable-card`;
+            d.innerHTML = `
+                <b style="color:var(--neon-green); font-size: 1.1rem;">${t(item.nKey)}</b>
+                ${savePerc > 0 ? `<div class="save-badge">${t('saveX').replace('{X}', savePerc)}</div>` : ''}
+                <div style="font-size:0.75rem; color:var(--text-color-faded); margin-top:10px;">${t(item.descKey)}</div>
+                
+                <div style="color:var(--neon-gold); font-weight:bold; margin-top:10px;"><div class="neon-bit-icon" style="display:inline-block; vertical-align:middle;"></div> ${item.price.toLocaleString()}</div>
+                <button class="btn ${canAfford?'btn-green':'btn-secondary'}" ${!canAfford ? 'disabled' : ''}>${t("shopBuy")}</button>
+            `;
+            d.onclick = () => {
+                if(canAfford) {
+                    CG.data.currency -= item.price;
+                    CG.data.reviveTickets += item.amount;
+                    FIREBASE.saveUserData();
+                    this.renderConsumables(); 
+                    UI.toast(`${item.amount} Tickets Achetés!`, "var(--neon-green)");
+                    Sound.play('purchase');
+                    spawnParticleEffect(canvas.width / 2, STATE.camY + canvas.height / 2, '#39ff14', 30);
+                } else {
+                    UI.toast(t("shopNotEnough"), "#ff3300");
+                }
+            };
+            g.appendChild(d);
+        });
+    },
+    
+    renderLootbox: function() {
+        const g = document.getElementById('tab-lootbox'); g.innerHTML = "";
+        
+        RARITIES.filter(r => r !== 'Secret').forEach(rarity => {
+            const box = LOOTBOXES[rarity];
+            const canAfford = CG.data.currency >= box.price;
+            
+            const d = document.createElement('div');
+            d.className = `lootbox-card rarity-${rarity}`;
+            d.innerHTML = `
+                <h3 style="margin-top:0;">${t('lootboxTitle')(t(`rarityNames.${rarity}`))}</h3>
+                <div style="font-size:0.9rem; color:var(--text-color-faded); margin-bottom:15px;">
+                    ${t('lootboxDesc')(t(`rarityNames.${box.minRarity}`))}
+                </div>
+                <div style="color:var(--neon-gold); font-weight:bold; margin-bottom:15px;">
+                    <div class="neon-bit-icon" style="display:inline-block; vertical-align:middle;"></div> ${box.price.toLocaleString()}
+                </div>
+                <button class="btn ${canAfford?'btn-green':'btn-secondary'} btn-buy-lootbox" data-rarity="${rarity}" ${!canAfford ? 'disabled' : ''} onclick="SHOP.buyLootbox('${rarity}')">
+                    ${t('lootboxBtnOpen')}
+                </button>
+                <button class="btn btn-blue btn-open-probability" data-rarity="${rarity}" style="margin-top:10px;" onclick="SHOP.openProbabilityPopup('${rarity}')">
+                    ${t('lootboxBtnProb')}
+                </button>
+            `;
+            g.appendChild(d);
+        });
+    },
+    
+    buyLootbox: function(boxRarity) {
+        const box = LOOTBOXES[boxRarity];
+        if (CG.data.currency < box.price) {
+            return UI.toast(t("shopNotEnough"), "#ff3300");
+        }
+        
+        const minRarityIndex = RARITIES.indexOf(box.minRarity);
+        let unownedSkins = SKINS.filter(s => 
+            !CG.data.skins.includes(s.id) && 
+            RARITIES.indexOf(s.rarity) >= minRarityIndex
+        );
+        
+        if (unownedSkins.length === 0) {
+            return UI.toast(t("allSkinsOwned"), "var(--neon-blue)");
+        }
+        
+        CG.data.currency -= box.price;
+        Sound.play('purchase');
+        
+        let totalChance = 0;
+        const weightedPool = [];
+        const boxProbabilities = box.probabilities;
+
+        const secretSkin = SKINS.find(s => s.id === 50);
+        const hasSecretSkin = CG.data.skins.includes(50);
+        const canRollSecret = boxRarity === "Commun" && !hasSecretSkin && CG.data.skins.length <= 40;
+        
+        if (canRollSecret && box.secretProb > 0) {
+            weightedPool.push({ skin: secretSkin, chance: box.secretProb });
+            totalChance += box.secretProb;
+        }
+
+        RARITIES.filter(r => r !== 'Secret').forEach(rarity => {
+            const skinsOfRarity = unownedSkins.filter(s => s.rarity === rarity && s.id !== 50);
+            const baseChance = boxProbabilities[rarity] || 0;
+            
+            let remainingChance = baseChance;
+            if (rarity === 'Legendaire' && boxRarity === 'Commun') {
+                remainingChance -= (canRollSecret ? box.secretProb : 0);
+                if (remainingChance < 0) remainingChance = 0;
+            }
+
+            if (skinsOfRarity.length > 0 && remainingChance > 0) {
+                const individualChance = remainingChance / skinsOfRarity.length;
+                skinsOfRarity.forEach(s => {
+                    weightedPool.push({ skin: s, chance: individualChance });
+                    totalChance += individualChance;
+                });
+            }
+        });
+        
+        let normalizedPool = weightedPool.map(item => ({
+            skin: item.skin,
+            chance: (item.chance / totalChance) * 100 
+        }));
+        
+        let rand = Math.random() * 100;
+        let cumulativeChance = 0;
+        let drawnSkin = null;
+
+        for (const item of normalizedPool) {
+            cumulativeChance += item.chance;
+            if (rand <= cumulativeChance) {
+                drawnSkin = item.skin;
+                break;
+            }
+        }
+        
+        if (!drawnSkin) {
+            drawnSkin = unownedSkins.find(s => RARITIES.indexOf(s.rarity) >= RARITIES.indexOf(box.minRarity)) || unownedSkins[0];
+        }
+
+        CG.data.skins.push(drawnSkin.id);
+        
+        if (RARITIES.indexOf(drawnSkin.rarity) > RARITIES.indexOf("Commun") || drawnSkin.id === 50) {
+             CG.data.currentSkin = drawnSkin.id;
+             if (player) player.skin = drawnSkin;
+        }
+
+        FIREBASE.saveUserData(); 
+        
+        SHOP.showLootboxReveal(drawnSkin);
+        SHOP.renderLootbox();
+    },
+    
+    showLootboxReveal: function(skin) {
+        document.getElementById('lootbox-reveal-overlay').classList.remove('hidden');
+        const revealDiv = document.getElementById('revealed-skin-name');
+        
+        revealDiv.className = `skin-reveal rarity-${skin.rarity}`;
+        revealDiv.innerHTML = `${t('newSkin') || 'Nouveau Skin'} : <strong>${skin.n}</strong> (${t(`rarityNames.${skin.rarity}`)})`;
+        
+        if (player) {
+            player.skin = skin;
+            player.radius = 80; 
+            setTimeout(() => {
+                spawnParticleEffect(canvas.width / 2, canvas.height / 2, skin.c, 100);
+            }, 500);
+        }
+    },
+    
+    closeLootboxPopup: function() {
+        document.getElementById('lootbox-reveal-overlay').classList.add('hidden');
+        SHOP.renderLootbox();
+        
+        if (player) {
+            player.skin = SKINS.find(sk => sk.id === CG.data.currentSkin) || SKINS[0];
+            player.radius = 40;
+        }
+        
+        UI.update();
+        SHOP.renderSkins();
+    },
+    
+    openProbabilityPopup: function(defaultRarity) {
+        const selector = document.getElementById('probability-select');
+        selector.innerHTML = '';
+        
+        RARITIES.filter(r => r !== 'Secret').forEach(rarity => {
+            const box = LOOTBOXES[rarity];
+            const option = document.createElement('option');
+            option.value = rarity;
+            option.innerText = t('lootboxTitle')(t(`rarityNames.${rarity}`));
+            selector.appendChild(option);
+        });
+        
+        document.getElementById('probability-overlay').classList.remove('hidden');
+        
+        const rarityToSelect = defaultRarity || 'Commun';
+        selector.value = rarityToSelect;
+        SHOP.renderProbabilityTable(rarityToSelect);
+    },
+    
+    renderProbabilityTable: function(boxRarity) {
+        const tableBody = document.getElementById('probability-table-body');
+        tableBody.innerHTML = '';
+        const box = LOOTBOXES[boxRarity];
+
+        const secretSkin = SKINS.find(s => s.id === 50);
+        const hasSecretSkin = CG.data.skins.includes(50);
+        const canRollSecret = boxRarity === "Commun" && !hasSecretSkin && CG.data.skins.length <= 40;
+
+        let totalSkins = 0;
+        
+        RARITIES.filter(r => r !== 'Secret').forEach(rarity => {
+            const baseChance = box.probabilities[rarity] || 0;
+            const skinsOfRarity = SKINS.filter(s => s.rarity === rarity && s.id !== 50);
+            const ownedCount = skinsOfRarity.filter(s => CG.data.skins.includes(s.id)).length;
+            const totalCount = skinsOfRarity.length;
+            
+            if (baseChance > 0 || RARITIES.indexOf(rarity) >= RARITIES.indexOf(box.minRarity)) {
+                
+                let chanceDisplay = baseChance.toFixed(4) + "%";
+                if (rarity === 'Legendaire' && boxRarity === 'Commun') {
+                    let adjustedChance = baseChance - (canRollSecret ? box.secretProb : 0);
+                    if (adjustedChance < 0) adjustedChance = 0;
+                    chanceDisplay = adjustedChance.toFixed(4) + "%";
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="rarity-${rarity}">${t(`rarityNames.${rarity}`)}</td>
+                    <td>${chanceDisplay}</td>
+                    <td>${ownedCount}</td>
+                    <td>${totalCount}</td>
+                `;
+                tableBody.appendChild(tr);
+
+                totalSkins += totalCount;
+            }
+        });
+
+        if (canRollSecret) {
+             const trSecret = document.createElement('tr');
+             trSecret.style.fontWeight = 'bold';
+             trSecret.style.backgroundColor = 'rgba(188, 19, 254, 0.1)';
+             trSecret.innerHTML = `
+                 <td class="rarity-Secret">★ ${secretSkin.n} (${t('rarityNames.Secret')})</td>
+                 <td>${box.secretProb.toFixed(4)}%</td>
+                 <td>${hasSecretSkin ? '1' : '0'}</td>
+                 <td>1</td>
+             `;
+             tableBody.appendChild(trSecret);
+        }
+        else if (boxRarity === "Commun" && !hasSecretSkin) {
+            const trInfo = document.createElement('tr');
+            const reason = (CG.data.skins.length > 40) ? "&gt;40 skins possédés" : "Possédé ou non applicable";
+            trInfo.innerHTML = `<td colspan="4" style="color:var(--neon-danger); font-style:italic;">Probabilité du Skin Secret désactivée (${reason}).</td>`;
+            tableBody.appendChild(trInfo);
+        }
+    }
+};
+
+function closeProbabilityPopup() {
+    document.getElementById('probability-overlay').classList.add('hidden');
+}
+
+// --- Fonctions de Paramètres ---
+function openSettings() {
+    document.getElementById('settings-overlay').classList.remove('hidden');
+    document.getElementById('bgm-toggle').checked = CG.data.settings.bgmOn;
+    document.getElementById('sfx-toggle').checked = CG.data.settings.sfxOn;
+    document.getElementById('theme-toggle').checked = (CG.data.settings.theme === 'light');
+    document.getElementById('effects-toggle').checked = CG.data.settings.reducedEffects;
+    document.getElementById('language-select').value = CG.data.settings.language; 
+    document.getElementById('bgm-volume').value = CG.data.settings.bgmVolume;
+    document.getElementById('sfx-volume').value = CG.data.settings.sfxVolume;
+    
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    document.getElementById('fullscreen-toggle').checked = !!isFullscreen;
+    
+    STATE.screen = 'settings';
+}
+
+function closeSettings() {
+    document.getElementById('settings-overlay').classList.add('hidden');
+    FIREBASE.saveUserData(); // Sauvegarde les réglages
+    STATE.screen = 'menu';
+}
+
+function toggleFullscreen() {
+    const elem = document.documentElement;
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    const toggle = document.getElementById('fullscreen-toggle');
+    
+    if (!isFullscreen) {
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                if(toggle) toggle.checked = false; 
+            });
+        } else if (elem.webkitRequestFullscreen) { /* Safari */
+            elem.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+const fullscreenButton = document.getElementById('fullscreen-prompt-btn');
+document.addEventListener('fullscreenchange', () => {
+     const isFs = !!document.fullscreenElement;
+     const toggle = document.getElementById('fullscreen-toggle');
+     if(toggle) toggle.checked = isFs;
+     if (fullscreenButton && STATE.screen === 'menu') {
+        fullscreenButton.classList.toggle('hidden', isFs);
+     }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+     const isFs = !!document.webkitFullscreenElement;
+     const toggle = document.getElementById('fullscreen-toggle');
+     if(toggle) toggle.checked = isFs;
+     if (fullscreenButton && STATE.screen === 'menu') {
+        fullscreenButton.classList.toggle('hidden', isFs);
+     }
+});
+
+function requestFullscreenAndHide() {
+    toggleFullscreen(); 
+}
+
+function openAccount() {
+    document.getElementById('account-overlay').classList.remove('hidden');
+    document.getElementById('auth-message').innerText = '';
+    
+    const isConnected = !!currentFirebaseUser;
+    
+    // Gérer l'affichage des champs selon l'état de connexion
+    const emailField = document.getElementById('auth-email');
+    const passwordField = document.getElementById('auth-password');
+    const pseudoField = document.getElementById('auth-pseudo');
+    
+    emailField.classList.toggle('hidden', isConnected);
+    passwordField.classList.toggle('hidden', isConnected);
+    
+    document.getElementById('auth-signout-btn').classList.toggle('hidden', !isConnected);
+    document.getElementById('auth-reset-pseudo-btn').classList.toggle('hidden', !isConnected); // NOUVEAU: Afficher le bouton reset
+    
+    // Logique d'affichage
+    if (isConnected) {
+        const pseudo = currentFirebaseUser.displayName || currentFirebaseUser.email;
+        document.getElementById('auth-status').innerText = t('authStatusConnected').replace('{X}', pseudo);
+        pseudoField.classList.remove('hidden');
+        pseudoField.value = currentFirebaseUser.displayName || '';
+        emailField.value = currentFirebaseUser.email;
+    } else {
+        document.getElementById('auth-status').innerText = t('authStatusNoPseudo');
+        pseudoField.classList.remove('hidden'); // Afficher le champ Pseudo pour l'inscription
+        emailField.value = '';
+        passwordField.value = '';
+        pseudoField.value = '';
+    }
+    
+    STATE.screen = 'account'; 
+}
+
+function closeAccount() {
+    document.getElementById('account-overlay').classList.add('hidden');
+    STATE.screen = 'menu';
+}
+
+function toggleTheme() {
+    CG.data.settings.theme = document.getElementById('theme-toggle').checked ? 'light' : 'dark';
+    applySettings();
+    FIREBASE.saveUserData();
+}
+function toggleEffects() {
+    CG.data.settings.reducedEffects = document.getElementById('effects-toggle').checked;
+    applySettings();
+    FIREBASE.saveUserData();
+}
+function toggleBGM() {
+    CG.data.settings.bgmOn = document.getElementById('bgm-toggle').checked;
+    BGM.update();
+    FIREBASE.saveUserData();
+}
+function changeBGMVolume() {
+    CG.data.settings.bgmVolume = document.getElementById('bgm-volume').value;
+    BGM.update();
+    FIREBASE.saveUserData();
+}
+function toggleSFX() {
+    CG.data.settings.sfxOn = document.getElementById('sfx-toggle').checked;
+    FIREBASE.saveUserData();
+}
+function changeSFXVolume() {
+    CG.data.settings.sfxVolume = document.getElementById('sfx-volume').value;
+    FIREBASE.saveUserData();
+}
+
+function applySettings() {
+    if (CG.data.settings.theme === 'light') {
+        document.body.classList.add('light-theme');
+    } else {
+        document.body.classList.remove('light-theme');
+    }
+    BGM.update();
+}
+
+
+// --- Système de Son (Web Audio) ---
+let audioCtx = null;
+const Sound = {
+    init: function() {
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.warn("Web Audio API not supported.");
+            }
+        }
+    },
+    
+    play: function(soundName) {
+        if (!audioCtx || !CG.data.settings.sfxOn) return;
+        let freq = 440, type = 'sine', duration = 0.1, vol = parseFloat(CG.data.settings.sfxVolume);
+        switch(soundName) {
+            case 'hook': freq = 800; type = 'triangle'; duration = 0.1; vol *= 0.5; break;
+            case 'bounce': freq = 1200; type = 'square'; duration = 0.2; vol *= 0.7; break;
+            case 'damage': type = 'noise'; duration = 0.3; vol *= 0.4; break;
+            case 'blocker': freq = 100; type = 'square'; duration = 0.2; vol *= 0.6; break;
+            case 'die': freq = 200; type = 'square'; duration = 0.5; vol *= 0.7; break;
+            case 'purchase': freq = 1500; type = 'sine'; duration = 0.1; vol *= 0.8; this._playTone(1800, 'sine', 0.1, vol, 0.05); break;
+            case 'rigid': freq = 600; type = 'sawtooth'; duration = 0.15; vol *= 0.3; break;
+            case 'newRecord': freq = 2000; type = 'sine'; duration = 0.5; vol *= 1.2; this._playTone(2500, 'sine', 0.2, vol, 0.2); break;
+            
+            case 'pickup_coin': freq = 1500; type = 'sine'; duration = 0.05; vol *= 0.6; this._playTone(2000, 'sine', 0.05, vol, 0.03); break;
+            case 'pickup_powerup': freq = 1600; type = 'triangle'; duration = 0.2; vol *= 0.8; this._playTone(2200, 'triangle', 0.1, vol, 0.1); break;
+            case 'shield_break': freq = 300; type = 'sawtooth'; duration = 0.3; vol *= 0.8; break;
+            
+            default: return;
+        }
+        this._playTone(freq, type, duration, vol, 0);
+    },
+    
+    _playTone: function(frequency, type, duration, volume, delay) {
+        if (!audioCtx) return;
+        const startTime = audioCtx.currentTime + delay;
+        const gainNode = audioCtx.createGain();
+        gainNode.connect(audioCtx.destination);
+        gainNode.gain.setValueAtTime(volume, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        if (type === 'noise') {
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            noise.connect(gainNode);
+            noise.start(startTime);
+            noise.stop(startTime + duration);
+        } else {
+            const oscillator = audioCtx.createOscillator();
+            oscillator.connect(gainNode);
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, startTime);
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        }
+    }
+};
+
+
+// --- ENGINE ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let animationId;
+let GAME_START_TIME = 0;
+
+class Vector {
+    constructor(x, y) { this.x = x; this.y = y; }
+    add(v) { return new Vector(this.x + v.x, this.y + v.y); }
+    sub(v) { return new Vector(this.x - v.x, this.y - v.y); }
+    mult(n) { return new Vector(this.x * n, this.y * n); }
+    mag() { return Math.sqrt(this.x * this.x + this.y * this.y); } 
+    normalize() { let m = this.mag(); return m === 0 ? new Vector(0,0) : new Vector(this.x/m, this.y/m); }
+}
+
+class Player {
+    constructor() {
+        this.pos = new Vector(canvas.width/2, canvas.height - 250);
+        this.vel = new Vector(0, 0);
+        this.radius = 12;
+        const scaleFactor = getScaleFactor(); 
+
+        this.gravity = (CG.data.powers.gravity ? 0.20 : 0.35) * scaleFactor; 
+        this.hookSpeed = (CG.data.powers.speed ? 1.3 : 0.8) * scaleFactor; 
+        this.maxHp = CG.data.powers.shield ? 3 : 2; 
+        this.hp = this.maxHp;
+        
+        this.hook = { active: false, pos: null };
+        this.invuln = 0;
+        this.skin = SKINS.find(s => s.id === CG.data.currentSkin) || SKINS[0];
+        
+        this.shieldActive = false;
+        this.shieldTimer = 0;
+        this.magnetActive = false;
+        this.magnetTimer = 0;
+    }
+
+    update() {
+        if(STATE.started) {
+            this.vel.y += this.gravity; 
+        } else {
+            this.vel.y = Math.sin(Date.now()/300) * 0.5;
+        }
+        if (this.hook.active && this.hook.pos) {
+            let dir = this.hook.pos.sub(this.pos);
+            if(dir.mag() < 20) {
+                this.hook.active = false;
+            } else {
+                this.vel = this.vel.add(dir.normalize().mult(this.hookSpeed));
+            }
+        }
+        if (STATE.started) {
+            this.vel = this.vel.mult(0.985);
+        }
+        this.pos = this.pos.add(this.vel);
+        if(this.invuln > 0) this.invuln--;
+        if (this.pos.x < 0) { this.pos.x = 0; this.vel.x *= -0.7; }
+        if (this.pos.x > canvas.width) { this.pos.x = canvas.width; this.vel.x *= -0.7; }
+        
+        // Gérer les timers de bonus
+        if (this.magnetTimer > 0) { this.magnetTimer--; } 
+        else if (this.magnetActive) { 
+            this.magnetActive = false; 
+            UI.toast(t("magnetEnd"), "#aaa");
+        }
+        
+        if (this.shieldTimer > 0) { this.shieldTimer--; } 
+        else if (this.shieldActive) { 
+            this.shieldActive = false; 
+            UI.toast(t("shieldEnd"), "#aaa");
+        }
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.pos = new Vector(x, y);
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 1;
+        this.vel = new Vector(Math.cos(angle) * speed, Math.sin(angle) * speed);
+        this.radius = Math.random() * 3 + 1;
+        this.color = color;
+        this.lifespan = 60;
+        this.gravity = 0.1;
+    }
+    isAlive() { return this.lifespan > 0; }
+    update() {
+        this.vel.y += this.gravity;
+        this.pos = this.pos.add(this.vel);
+        this.lifespan--;
+    }
+    draw(ctx) {
+        ctx.globalAlpha = this.lifespan / 60;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+}
+let particles = [];
+
+// Classe pour les Bonus
+class Pickup {
+    constructor(x, y, type) {
+        this.pos = new Vector(x, y);
+        this.type = type;
+        this.radius = 15;
+        this.isAlive = true;
+        this.vel = new Vector(0, 0); 
+    }
+    
+    update() {
+        if (this.type === 'coin' && player.magnetActive) {
+            let dist = player.pos.sub(this.pos).mag();
+            if (dist < 150) { 
+                let dir = player.pos.sub(this.pos).normalize();
+                this.vel = this.vel.add(dir.mult(1.5)).mult(0.9); 
+                this.pos = this.pos.add(this.vel);
+            } else {
+                this.vel = this.vel.mult(0.9); 
+                this.pos = this.pos.add(this.vel);
+            }
+        }
+    }
+    
+    draw(ctx) {
+        if (!this.isAlive) return;
+        ctx.font = '24px Arial'; 
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let emoji = '❓';
+        if (this.type === 'coin') emoji = '💰';
+        else if (this.type === 'magnet') emoji = '🧲';
+        else if (this.type === 'shield') emoji = '🛡️';
+        
+        ctx.fillText(emoji, this.pos.x, this.pos.y);
+    }
+}
+
+
+function spawnParticleEffect(x, y, color, count) {
+    if (CG.data.settings.reducedEffects) return;
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+const STATE = { 
+    screen: 'menu', 
+    score: 0, 
+    lastBitScore: 0,
+    started: false, 
+    platforms: [], 
+    pickups: [], 
+    camY: 0, 
+    glitchY: 0, 
+    revives: 0,
+    bitsAdUsed: 0,
+    isReviveSafeZone: false, 
+    reviveSafeZoneUntil: 0, 
+};
+let player;
+
+function initGame() {
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('new-record-overlay').classList.add('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    CG.stopPreviewLoop(); 
+    reset();
+    
+    if (!CG.data.hasPlayedTutorial) {
+        document.getElementById('tutorial-overlay').classList.remove('hidden');
+    } else {
+        startGameReal();
+    }
+}
+
+function startGameReal() {
+    document.getElementById('tutorial-overlay').classList.add('hidden');
+    
+    if (!CG.data.hasPlayedTutorial) {
+        CG.data.hasPlayedTutorial = true;
+        FIREBASE.saveUserData();
+    }
+    
+    const anim = document.getElementById('start-anim');
+    anim.classList.remove('anim-play'); void anim.offsetWidth; anim.classList.add('anim-play');
+    
+    STATE.screen = 'playing'; 
+    STATE.started = false; 
+    STATE.revives = 0;
+    GAME_START_TIME = Date.now();
+    
+    document.getElementById('pause-btn').classList.remove('hidden');
+    loop();
+}
+
+function reset() {
+    resize();
+    player = new Player();
+    particles = [];
+    STATE.platforms = []; 
+    STATE.pickups = []; 
+    STATE.score = 0; 
+    STATE.lastBitScore = 0; 
+    STATE.camY = 0; 
+    STATE.glitchY = player.pos.y + 600;
+    STATE.revives = 0;
+    STATE.isReviveSafeZone = false; 
+    STATE.reviveSafeZoneUntil = 0; 
+    
+    updateHearts(); 
+
+    STATE.platforms.push({x:canvas.width/2-50, y:player.pos.y+60, w:100, h:20, type:'start'});
+    STATE.platforms.push({x:canvas.width/2+40, y:player.pos.y-100, w:80, h:20, type:'normal'});
+    genPlat(player.pos.y - 1000);
+}
+
+function genPlat(minY) {
+    let lastY = STATE.platforms.length > 0 ? STATE.platforms[STATE.platforms.length-1].y : player.pos.y;
+    while (lastY > minY) {
+        lastY -= (Math.random() * 90 + 70);
+        let altitude = Math.floor(((canvas.height - 250) - lastY) / 10);
+        let type = 'normal';
+        let platWidth;
+
+        // Logique de zone sûre
+        if (STATE.isReviveSafeZone) {
+            platWidth = Math.random() * 80 + 80; 
+            type = 'normal';
+        } else {
+            // Logique normale
+            let rnd = Math.random();
+            platWidth = Math.random() * 60 + 40;
+            if (altitude > 250 && rnd < 0.15) { 
+                type = 'blocker';
+                platWidth = Math.random() * 100 + 100;
+            } else if (rnd > 0.9) { 
+                type = 'bounce';
+            } else if (altitude > 500 && rnd > 0.75) { 
+                type = 'danger';
+            } else if (altitude > 1000 && rnd < 0.05) { // NOUVEAU: Plateforme mouvante
+                 type = 'moving-danger';
+                 platWidth = 50; 
+            }
+        }
+        
+        const newPlat = { 
+            x: Math.random() * (canvas.width - platWidth), 
+            y: lastY, 
+            w: platWidth, 
+            h: 20, 
+            type: type,
+            // Propriétés pour les plateformes mouvantes
+            moveDir: (type === 'moving-danger') ? (Math.random() > 0.5 ? 1 : -1) : 0, 
+            moveSpeed: (type === 'moving-danger') ? Math.random() * 0.8 + 0.4 : 0, 
+            moveRange: (type === 'moving-danger') ? Math.random() * 150 + 100 : 0,
+            initialX: (type === 'moving-danger') ? newPlat.x : 0,
+        };
+        STATE.platforms.push(newPlat);
+
+        // Génération des bonus (uniquement hors zone sûre)
+        if (type !== 'start' && !STATE.isReviveSafeZone) {
+            if (Math.random() < 0.2) { 
+                 STATE.pickups.push(new Pickup(newPlat.x + newPlat.w / 2, newPlat.y - 30, 'coin'));
+            }
+            if (Math.random() < 0.03) {
+                let pickupType = Math.random() < 0.5 ? 'shield' : 'magnet';
+                STATE.pickups.push(new Pickup(newPlat.x + (Math.random() * newPlat.w), newPlat.y - 30, pickupType));
+            }
+        }
+    }
+}
+
+
+function loop() {
+    if (STATE.screen !== 'playing') return;
+    
+    CG.data.totalTimePlayedSeconds += (1/60);
+
+    player.update();
+    
+    // Mettre à jour les bonus
+    STATE.pickups.forEach(p => p.update());
+    
+    // Vérifier les collisions avec les bonus
+    for (let i = STATE.pickups.length - 1; i >= 0; i--) {
+        const p = STATE.pickups[i];
+        if (!p.isAlive) continue;
+        
+        const dist = player.pos.sub(p.pos).mag();
+        if (dist < player.radius + p.radius) { 
+            p.isAlive = false;
+            switch(p.type) {
+                case 'coin':
+                    CG.data.currency += 100; 
+                    UI.toast(t("pickupCoin"), "#ffd700");
+                    Sound.play('pickup_coin');
+                    break;
+                case 'magnet':
+                    player.magnetActive = true;
+                    player.magnetTimer = 30 * 60; 
+                    UI.toast(t("pickupMagnet"), "#bc13fe");
+                    Sound.play('pickup_powerup');
+                    break;
+                case 'shield':
+                    player.shieldActive = true;
+                    player.shieldTimer = 20 * 60; 
+                    UI.toast(t("pickupShield"), "#00f3ff");
+                    Sound.play('pickup_powerup');
+                    break;
+            }
+        }
+    }
+    STATE.pickups = STATE.pickups.filter(p => p.isAlive && p.pos.y < STATE.glitchY + canvas.height);
+
+
+    particles.forEach(p => p.update());
+    particles = particles.filter(p => p.isAlive());
+
+    if(player.pos.y > STATE.camY + canvas.height * 1.5) { die(); return; }
+
+    let target = player.pos.y - canvas.height * 0.6;
+    if (target < STATE.camY) STATE.camY += (target - STATE.camY) * 0.1;
+    
+    if(STATE.started) {
+        STATE.glitchY -= 1.5;
+        if(player.pos.y > STATE.glitchY) { die(); return; }
+        
+        // Vérifier la fin de la zone sûre
+        if (STATE.isReviveSafeZone && player.pos.y < STATE.reviveSafeZoneUntil) {
+            STATE.isReviveSafeZone = false;
+            UI.toast(t("safeZoneEnd"), "#00f3ff");
+        }
+        
+    } else STATE.glitchY = player.pos.y + 600;
+
+    if (player.pos.y < STATE.platforms[STATE.platforms.length-1].y + 1000) genPlat(player.pos.y - 1000);
+    STATE.platforms = STATE.platforms.filter(p => p.y < STATE.glitchY + canvas.height);
+    
+    STATE.platforms.forEach(p => {
+        // Mettre à jour les plateformes mouvantes
+        if (p.type === 'moving-danger') {
+            const speed = p.moveSpeed * getScaleFactor();
+            p.x += p.moveDir * speed;
+            const diff = p.x - p.initialX;
+            if (Math.abs(diff) >= p.moveRange / 2) {
+                p.moveDir *= -1; 
+                p.x = p.initialX + p.moveDir * (p.moveRange / 2); 
+            }
+            // Mettre à jour la position du point de grappin si active
+            if (player.hook.active && player.hook.pos && player.hook.pos.x === p.x + p.w / 2) {
+                player.hook.pos.x = p.x + p.w / 2;
+            }
+        }
+        
+        const isDangerous = (p.type === 'danger' || p.type === 'blocker' || p.type === 'moving-danger');
+        const horizontalOverlap = (player.pos.x + player.radius > p.x && player.pos.x - player.radius < p.x + p.w);
+        const hitTopSurface = (player.vel.y > 0 && player.pos.y + player.radius > p.y && player.pos.y - player.radius < p.y);
+        const hitBottomSurface = (player.vel.y < 0 && player.pos.y - player.radius < p.y + p.h && player.pos.y + player.radius > p.y + p.h); 
+
+        if (horizontalOverlap) {
+            if (p.type === 'bounce' && hitTopSurface) {
+                player.vel.y = -22; 
+                UI.toast("BOING!", "#39ff14");
+                Sound.play('bounce');
+                spawnParticleEffect(player.pos.x, p.y, '#39ff14', 10);
+            }
+            else if (isDangerous || p.type === 'moving-danger') {
+                if (hitTopSurface) {
+                    player.vel.y = -8; 
+                    player.pos.y = p.y - player.radius;
+                    Sound.play('rigid');
+                    spawnParticleEffect(player.pos.x, p.y, '#ffffff', 5);
+                } 
+                else if (hitBottomSurface) { 
+                    player.vel.y = 8;
+                    player.pos.y = p.y + p.h + player.radius;
+                    Sound.play('rigid');
+                    spawnParticleEffect(player.pos.x, p.y + p.h, '#ffffff', 5);
+                }
+            }
+        }
+    });
+
+    let h = Math.floor((-(player.pos.y - (canvas.height - 250))) / 10);
+    
+    if(h > STATE.score) {
+        const newMeters = h - STATE.score; 
+        if (STATE.started && newMeters > 0) {
+            CG.data.currency += (newMeters * 0.5); 
+        }
+        STATE.score = h; 
+    }
+    
+    document.getElementById('score-display').innerText = STATE.score;
+
+    draw();
+    animationId = requestAnimationFrame(loop);
+}
+
+function draw() {
+    const isLightTheme = document.body.classList.contains('light-theme');
+    const reducedEffects = CG.data.settings.reducedEffects;
+    const bgColor = isLightTheme ? '#f0f0f0' : '#050505';
+    const normalColor = isLightTheme ? '#005599' : '#00f3ff';
+    const dangerColor = '#ff3300';
+    const bounceColor = '#39ff14';
+    const blockerColor = isLightTheme ? '#444' : '#330033';
+    const blockerShadow = '#bc13fe';
+
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.translate(0, -STATE.camY);
+    
+    STATE.platforms.forEach(p => {
+        if(p.y > STATE.camY - 50 && p.y < STATE.camY + canvas.height + 50) {
+            let c = normalColor, shadowC = normalColor;
+            
+            if(p.type === 'danger' || p.type === 'moving-danger') { c = dangerColor; shadowC = dangerColor; }
+            else if(p.type === 'bounce') { c = bounceColor; shadowC = bounceColor; }
+            else if(p.type === 'blocker') { c = blockerColor; shadowC = blockerShadow; }
+            
+            ctx.fillStyle = c; 
+            if (!reducedEffects) { ctx.shadowBlur=10; ctx.shadowColor = shadowC; }
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.shadowBlur=0;
+        }
+    });
+
+    if(player.hook.active && player.hook.pos) {
+        ctx.strokeStyle = player.skin.c; ctx.lineWidth = 2; ctx.beginPath();
+        ctx.moveTo(player.pos.x, player.pos.y); ctx.lineTo(player.hook.pos.x, player.hook.pos.y); ctx.stroke();
+    }
+
+    const skin = player.skin;
+    let shadowColor = skin.c, shadowBlur = 0;
+    if (!reducedEffects) {
+        if (skin.effect === 'glow') shadowBlur = 25;
+        else if (skin.effect === 'pulse') shadowBlur = 25 + Math.sin(Date.now() / 150) * 18;
+    }
+    let fillStyle;
+    if (skin.texture === 'gradient' && skin.c2) {
+        const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+        grad.addColorStop(0, skin.c); grad.addColorStop(1, skin.c2);
+        fillStyle = grad;
+    } else fillStyle = skin.c;
+    if (skin.id === 47) { 
+        const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+        grad.addColorStop(0, `hsl(${Date.now()/10 % 360}, 100%, 50%)`);
+        grad.addColorStop(1, `hsl(${(Date.now()/10 + 180) % 360}, 100%, 50%)`);
+        fillStyle = grad;
+        if (!reducedEffects) shadowColor = `hsl(${Date.now()/10 % 360}, 100%, 50%)`;
+    }
+    if (skin.id === 48 && !reducedEffects) shadowColor = `hsl(${Date.now()/10 % 360}, 100%, 50%)`;
+    
+   if (skin.id === 50) {
+            const time = Date.now() / 10;
+            const grad = ctx.createRadialGradient(player.pos.x, player.pos.y, 1, player.pos.x, player.pos.y, player.radius);
+            grad.addColorStop(0, skin.c);
+            grad.addColorStop(1, skin.c2);
+            fillStyle = grad;
+            
+            if (!reducedEffects) {
+                shadowColor = skin.c; 
+                ctx.shadowBlur = 25 + Math.sin(Date.now() / 150) * 18; 
+            }
+        }
+        
+    ctx.fillStyle = fillStyle;
+    ctx.shadowBlur = shadowBlur;
+    ctx.shadowColor = shadowColor;
+    if(player.invuln > 0 && Date.now()%100 < 50) ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.arc(player.pos.x, player.pos.y, player.radius, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0; 
+
+    // Dessiner le bouclier temporaire
+    if (player.shieldActive) {
+        ctx.strokeStyle = '#00f3ff';
+        ctx.lineWidth = 3;
+        if (!reducedEffects) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00f3ff';
+        }
+        ctx.beginPath();
+        const pulseRadius = 8 + Math.sin(Date.now() / 150) * 3;
+        ctx.arc(player.pos.x, player.pos.y, player.radius + pulseRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    
+    particles.forEach(p => p.draw(ctx));
+
+    // Dessiner les bonus
+    STATE.pickups.forEach(p => p.draw(ctx));
+
+    let gy = STATE.glitchY;
+    ctx.fillStyle = 'rgba(255,0,85,0.8)'; ctx.fillRect(0, gy, canvas.width, canvas.height*2);
+    ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(canvas.width, gy + Math.random()*20); ctx.stroke();
+    
+    ctx.restore();
+}
+
+// --- PAUSE & FLOW CONTROLS ---
+document.getElementById('pause-btn').classList.add('hidden'); 
+
+function pauseGame() {
+    if (STATE.screen !== 'playing') return;
+    STATE.screen = 'paused';
+    cancelAnimationFrame(animationId);
+    document.getElementById('pause-overlay').classList.remove('hidden');
+    document.getElementById('pause-btn').classList.add('hidden'); 
+}
+function startResumeCountdown() {
+    document.getElementById('pause-overlay').classList.add('hidden');
+    document.getElementById('revive-timer-overlay').classList.remove('hidden');
+    let count = 3;
+    const countdownDisplay = document.getElementById('revive-countdown');
+    countdownDisplay.innerText = count;
+    let resumeInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownDisplay.innerText = count;
+        } else {
+            clearInterval(resumeInterval);
+            document.getElementById('revive-timer-overlay').classList.add('hidden');
+            resumeGame();
+        }
+    }, 1000);
+}
+function resumeGame() {
+    STATE.screen = 'playing';
+    document.getElementById('pause-btn').classList.remove('hidden');
+    loop();
+}
+function restartGame() {
+    document.getElementById('pause-overlay').classList.add('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    initGame(); 
+}
+function quitGame() {
+    document.getElementById('pause-overlay').classList.add('hidden');
+    finalizeGameOver(); 
+}
+
+function showNewRecordPopup() {
+    STATE.screen = 'menu';
+    cancelAnimationFrame(animationId);
+    Sound.play('newRecord'); 
+    spawnParticleEffect(canvas.width / 2, STATE.camY + canvas.height / 2, '#ffd700', 50);
+    document.getElementById('final-record-display').innerText = CG.data.bestScore;
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('revive-overlay').classList.add('hidden');
+    document.getElementById('hud-hearts').classList.add('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    document.getElementById('new-record-overlay').classList.remove('hidden');
+    CG.startPreviewLoop();
+}
+
+
+// --- MORT & REVIVE ---
+function die() {
+    STATE.screen = 'paused'; cancelAnimationFrame(animationId);
+    
+    const btnRevive = document.getElementById('btn-revive-ticket');
+    btnRevive.innerHTML = `<span data-i18n="btnReviveTicket">${t("btnReviveTicket").replace('{X}', CG.data.reviveTickets)}</span>`;
+    
+    if (CG.data.reviveTickets > 0 && STATE.revives < 3) {
+        btnRevive.disabled = false;
+    } else {
+        btnRevive.disabled = true;
+        if (STATE.revives >= 3) UI.toast(t("maxRevives"), "#ff3300");
+    }
+    
+    document.getElementById('revive-overlay').classList.remove('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    Sound.play('die');
+}
+
+document.getElementById('btn-revive-ticket').onclick = () => {
+    if(STATE.revives >= 3) return UI.toast(t("maxRevives"), "#ff3300"); 
+    if(CG.data.reviveTickets <= 0) return UI.toast(t("reviveNoTickets"), "#ff3300");
+    
+    CG.data.reviveTickets--;
+    FIREBASE.saveUserData();
+    startReviveCountdown();
+};
+
+
+document.getElementById('btn-abandon').addEventListener('click', finalizeGameOver);
+
+let reviveInterval;
+function startReviveCountdown() {
+    document.getElementById('revive-overlay').classList.add('hidden');
+    document.getElementById('revive-timer-overlay').classList.remove('hidden');
+    
+    let count = 3;
+    const countdownDisplay = document.getElementById('revive-countdown');
+    countdownDisplay.innerText = count;
+    
+    clearInterval(reviveInterval);
+    reviveInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownDisplay.innerText = count;
+        } else {
+            clearInterval(reviveInterval);
+            document.getElementById('revive-timer-overlay').classList.add('hidden');
+            doRevive();
+        }
+    }, 1000);
+}
+
+function doRevive() {
+    STATE.revives++;
+    
+    // Activer la zone sûre
+    STATE.isReviveSafeZone = true;
+    STATE.reviveSafeZoneUntil = player.pos.y - 2000; 
+    UI.toast(t("safeZoneStart"), "#00f3ff");
+
+    player.hp = player.maxHp; 
+    updateHearts();
+    player.vel = new Vector(0, 0); 
+    player.pos.x = canvas.width / 2; 
+    player.pos.y = STATE.camY + canvas.height / 2;
+    player.vel.y = -10;
+    STATE.glitchY = player.pos.y + 600;
+    STATE.screen = 'playing'; 
+    document.getElementById('pause-btn').classList.remove('hidden');
+    loop();
+}
+
+function finalizeGameOver() {
+    document.getElementById('revive-overlay').classList.add('hidden');
+    document.getElementById('hud-hearts').classList.add('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    
+    const isNewRecord = STATE.score > CG.data.bestScore;
+    
+    const timeElapsedS = (Date.now() - GAME_START_TIME) / 1000;
+    const maxPossibleScore = (timeElapsedS * 50) + 100;
+    const isScoreValid = (STATE.score <= maxPossibleScore) || timeElapsedS < 5;
+    
+    if (isNewRecord) {
+        CG.data.bestScore = STATE.score;
+    }
+    
+    if (isScoreValid) { 
+        FIREBASE.saveUserData(); // Appel à la sauvegarde qui inclut le classement
+    } else {
+        console.warn(`Score suspect bloqué: ${STATE.score}m en ${timeElapsedS.toFixed(1)}s.`);
+        UI.toast(t("anticheatScoreVoid"), "var(--neon-danger)");
+        FIREBASE.saveUserData(); // Sauve la progression (bits, skins) mais pas le score.
+    }
+
+    if (isNewRecord && isScoreValid) {
+        showNewRecordPopup();
+        return;
+    }
+    
+    showMenuAfterAd();
+}
+
+function showMenuAfterAd() {
+    document.getElementById('new-record-overlay').classList.add('hidden');
+    document.getElementById('pause-overlay').classList.add('hidden');
+    document.getElementById('pause-btn').classList.add('hidden');
+    
+    STATE.screen = 'menu';
+    document.getElementById('menu-overlay').classList.remove('hidden'); 
+    UI.update(); 
+    CG.startPreviewLoop(); 
+}
+
+
+// --- INPUT LOGIC ---
+function handleGrappleDown(clientX, clientY) {
+    Sound.init(); 
+    BGM.start();
+    
+    if (STATE.screen !== 'playing' || !player) return; 
+    if (!document.getElementById('shop-overlay').classList.contains('hidden')) return;
+    if (!document.getElementById('settings-overlay').classList.contains('hidden')) return;
+    if (!document.getElementById('pause-overlay').classList.contains('hidden')) return;
+    if (!document.getElementById('account-overlay').classList.contains('hidden')) return;
+
+    const r = canvas.getBoundingClientRect();
+    const x = clientX - r.left; 
+    const y_world = clientY - r.top + STATE.camY;
+    
+    let closest = null;
+    let closestYDist = Infinity; 
+    
+    STATE.platforms.forEach(p => {
+        if (x > p.x-20 && x < p.x+p.w+20 && y_world > p.y-20 && y_world < p.y+p.h+20) {
+            const currentDist = Math.abs(y_world - (p.y + p.h/2)); 
+            if(!closest || currentDist < closestYDist) {
+                closestYDist = currentDist;
+                closest = {v:new Vector(p.x+p.w/2, p.y+p.h/2), t:p.type};
+            }
+        }
+    });
+
+    if(closest) {
+        if (closest.t === 'blocker') {
+            UI.toast(t("grappleBlocked"), "var(--neon-danger)"); 
+            player.hook.active = false;
+            Sound.play('blocker');
+            return;
+        }
+        
+        player.hook.active = true; player.hook.pos = closest.v;
+        if (player.invuln <= 0) { 
+            Sound.play('hook');
+            spawnParticleEffect(closest.v.x, closest.v.y, '#ffffff', 5);
+        }
+        
+        if(!STATE.started) STATE.started = true;
+        
+        if((closest.t === 'danger' || closest.t === 'moving-danger') && player.invuln <= 0) {
+            
+            // Vérifier le bouclier temporaire
+            if (player.shieldActive) {
+                player.shieldActive = false;
+                player.shieldTimer = 0;
+                player.invuln = 60; // Brève invulnérabilité
+                Sound.play('shield_break'); 
+                spawnParticleEffect(player.pos.x, player.pos.y, '#00f3ff', 20);
+                UI.toast(t("shieldBroken"), "#00f3ff");
+                return; // Ne prend pas de dégâts
+            }
+
+            if (player.skin.rarity === 'Secret') {
+                UI.toast(t("secretInvincibility"), "var(--neon-purple)");
+                Sound.play('blocker'); 
+                return; 
+            }
+            
+            player.hp--; player.invuln = 60; 
+            UI.toast(t("damageTaken"), "#ff3300"); 
+            updateHearts();
+            Sound.play('damage');
+            spawnParticleEffect(player.pos.x, player.pos.y, '#ff3300', 15);
+            if(player.hp <= 0) die();
+        }
+    }
+}
+
+canvas.addEventListener('mousedown', (e) => { handleGrappleDown(e.clientX, e.clientY); });
+canvas.addEventListener('touchstart', (e) => { 
+    e.preventDefault(); 
+    if(e.touches.length > 0) handleGrappleDown(e.touches[0].clientX, e.touches[0].clientY);
+});
+canvas.addEventListener('mouseup', () => { if(player) player.hook.active = false; }); 
+canvas.addEventListener('touchend', () => { if(player) player.hook.active = false; }); 
+
+function updateHearts() {
+    document.getElementById('hud-hearts').classList.remove('hidden');
+    document.getElementById('h1').className = player.hp >= 1 ? 'heart active' : 'heart lost';
+    document.getElementById('h2').className = player.hp >= 2 ? 'heart active' : 'heart lost';
+    const h3 = document.getElementById('h3');
+    if (player.maxHp === 3) {
+        h3.classList.remove('hidden');
+        h3.className = player.hp >= 3 ? 'heart shield' : 'heart lost';
+    } else {
+        h3.classList.add('hidden');
+    }
+}
+
+function resize() { 
+    const c=document.getElementById('game-container'); 
+    canvas.width=c.clientWidth; 
+    canvas.height=c.clientHeight; 
+    if (player) {
+        player.pos.x = canvas.width / 2;
+        player.pos.y = canvas.height / 2;
+    }
+}
+window.addEventListener('resize', resize);
+
+// Initialize the game
+window.onload = function() {
+    CG.init();
+};
+
+resize();
+// --- SYSTEME DE RECOMPENSE QUOTIDIENNE ---
+const DAILY = {
+    rewardAmount: 100,
+    
+    init: function() {
+        const lastClaim = localStorage.getItem('nt_last_daily');
+        const today = new Date().toDateString();
+        const btn = document.getElementById('btn-daily');
+        
+        if (lastClaim !== today) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    },
+
+    check: function() {
+        document.getElementById('daily-overlay').classList.remove('hidden');
+    },
+
+    claim: function() {
+        // Ajout monnaie (Simulation d'une fonction addMoney existante ou utilisation localStorage)
+        let current = parseInt(localStorage.getItem('neon_currency') || 0);
+        localStorage.setItem('neon_currency', current + this.rewardAmount);
+        
+        localStorage.setItem('nt_last_daily', new Date().toDateString());
+        
+        document.getElementById('daily-overlay').classList.add('hidden');
+        document.getElementById('btn-daily').classList.add('hidden');
+        
+        // Petit effet toast si tu l'as déjà dans ton jeu
+        if(window.showToast) window.showToast(`+${this.rewardAmount} Coins!`);
+    }
+};
+
+// --- SYSTEME BATTLE PASS ---
+const BATTLEPASS = {
+    data: {
+        seasonName: "Neon Genesis",
+        level: 1,
+        xp: 0,
+        isPremium: false,
+        claimed: [] // Stocke les IDs des rewards réclamés "lvl-type" ex: "1-free"
+    },
+    xpPerLevel: 1000,
+    rewards: [
+        { lvl: 1, free: '100 Coins', prem: 'Skin Rare' },
+        { lvl: 2, free: '50 Coins', prem: '200 Coins' },
+        { lvl: 3, free: 'Ticket Revive', prem: 'Trail Effect' },
+        { lvl: 4, free: '50 Coins', prem: '300 Coins' },
+        { lvl: 5, free: 'Skin Commun', prem: 'Skin LEGEND' },
+        // Ajoute autant que tu veux
+    ],
+
+    init: function() {
+        const saved = JSON.parse(localStorage.getItem('nt_battlepass'));
+        if (saved) this.data = { ...this.data, ...saved };
+        this.render();
+    },
+
+    save: function() {
+        localStorage.setItem('nt_battlepass', JSON.stringify(this.data));
+        this.render();
+    },
+
+    open: function() {
+        document.getElementById('battlepass-overlay').classList.remove('hidden');
+        this.render();
+    },
+
+    addXP: function(amount) {
+        this.data.xp += amount;
+        while (this.data.xp >= this.xpPerLevel) {
+            this.data.xp -= this.xpPerLevel;
+            this.data.level++;
+            if(window.showToast) window.showToast("BATTLE PASS LEVEL UP!");
+        }
+        this.save();
+    },
+
+    buyPremium: function() {
+        // Simulation d'achat
+        this.data.isPremium = true;
+        document.getElementById('btn-buy-pass').innerText = "PREMIUM ACTIF";
+        document.getElementById('btn-buy-pass').disabled = true;
+        this.save();
+    },
+
+    claim: function(lvl, type) {
+        const id = `${lvl}-${type}`;
+        if (this.data.claimed.includes(id)) return;
+        if (lvl > this.data.level) return;
+        if (type === 'prem' && !this.data.isPremium) return;
+
+        this.data.claimed.push(id);
+        alert(`Récompensé récupérée : ${type === 'free' ? this.rewards[lvl-1].free : this.rewards[lvl-1].prem}`);
+        this.save();
+    },
+
+    render: function() {
+        // Update UI Header
+        document.querySelector('.bp-season-title').innerText = this.data.seasonName;
+        document.getElementById('bp-level-display').innerText = `Niveau ${this.data.level}`;
+        document.getElementById('bp-xp-current').innerText = this.data.xp;
+        document.getElementById('bp-xp-max').innerText = this.xpPerLevel;
+        document.getElementById('bp-bar-fill').style.width = (this.data.xp / this.xpPerLevel * 100) + '%';
+        
+        if(this.data.isPremium) {
+             document.getElementById('btn-buy-pass').innerText = "PREMIUM ACTIF";
+             document.getElementById('btn-buy-pass').disabled = true;
+        }
+
+        // Render Grid
+        const container = document.getElementById('bp-tracks-container');
+        container.innerHTML = '';
+
+        // Labels
+        const labels = document.createElement('div');
+        labels.className = 'bp-row';
+        labels.innerHTML = '<div class="bp-row-label">Free</div><div class="bp-row-label" style="margin-top:130px; position:absolute">Premium</div>';
+        // container.appendChild(labels); // Simplifié pour l'exemple
+
+        // Build items
+        this.rewards.forEach(r => {
+            const col = document.createElement('div');
+            col.style.display = 'flex';
+            col.style.flexDirection = 'column';
+            col.style.gap = '10px';
+            col.style.marginRight = '10px';
+
+            // Free Card
+            const freeClass = (this.data.level >= r.lvl) ? (this.data.claimed.includes(`${r.lvl}-free`) ? 'bp-card claimed' : 'bp-card unlocked') : 'bp-card';
+            const freeHtml = `
+                <div class="${freeClass}" onclick="BATTLEPASS.claim(${r.lvl}, 'free')">
+                    <span class="lvl-badge">${r.lvl}</span>
+                    <div>${r.free}</div>
+                </div>`;
+
+            // Premium Card
+            let premClass = 'bp-card';
+            let lockHtml = '<div class="bp-premium-lock">🔒</div>';
+            
+            if (this.data.isPremium) {
+                lockHtml = '';
+                if (this.data.level >= r.lvl) {
+                    premClass = this.data.claimed.includes(`${r.lvl}-prem`) ? 'bp-card claimed' : 'bp-card unlocked';
+                }
+            }
+            
+            const premHtml = `
+                <div class="${premClass}" onclick="BATTLEPASS.claim(${r.lvl}, 'prem')" style="border-color:var(--neon-purple)">
+                    ${lockHtml}
+                    <div>${r.prem}</div>
+                </div>`;
+
+            col.innerHTML = freeHtml + premHtml;
+            container.appendChild(col);
+        });
+    }
+};
+
+// --- INITIALISATION ---
+// Ajoute ceci à ton window.onload ou à la fin du fichier
+window.addEventListener('load', () => {
+    DAILY.init();
+    BATTLEPASS.init();
+    
+    });
+
+</script>
+<script>
+(function() {
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    document.onkeydown = function(e) {
+        if (e.keyCode == 123) { 
+            return false;
+        }
+        if (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0))) {
+            return false;
+        }
+        if (e.ctrlKey && (e.keyCode == 'U'.charCodeAt(0))) { 
+            return false;
+        }
+    };
+
+    setInterval(function() {
+        var startTime = performance.now();
+        debugger; 
+        var endTime = performance.now();
+        if (endTime - startTime > 100) {
+            document.body.innerHTML = '<h1 style="color:red; text-align:center; margin-top:20%">TRICHE DÉTECTÉE : VEUILLEZ FERMER LA CONSOLE</h1>';
+            window.location.reload();
+        }
+    }, 1000);
+
+
+    var _console = console;
+    Object.defineProperty(window, 'console', {
+        get: function() {
+            if (_console._commandLineAPI) {
+                throw "Console désactivée";
+            }
+            return _console;
+        },
+        set: function() {
+            throw "Console désactivée";
+        }
+    });
+})();
+</script>
+
+</body>
+</html>
